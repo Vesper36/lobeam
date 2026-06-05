@@ -1,11 +1,15 @@
 package server
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -227,7 +231,7 @@ func (s *Server) Start() error {
 |  |  |  | |   ____||  |     |  |
 |  |_|  | |  |__   |  |     |  |
 |       | |   __|  |  |     |  |
-|       | |  |____ |  ` + "`" + `----.|  ` + "`" + `----.
+|       | |  |____ |  `+"`"+`----.|  `+"`"+`----.
 |___|___| |_______||_______||_______|
 
   LoBeam - Large Object Beam
@@ -235,5 +239,27 @@ func (s *Server) Start() error {
   Public URL: %s
 `, addr, s.cfg.PublicURL)
 
-	return http.ListenAndServe(addr, s.Router())
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      s.Router(),
+		ReadTimeout:  0,
+		WriteTimeout: 0,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+		}
+	}()
+
+	<-stop
+	fmt.Println("\nShutting down gracefully...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(ctx)
 }
