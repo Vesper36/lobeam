@@ -359,6 +359,21 @@ func (db *DB) MarkChunkUploaded(id string) error {
 	return err
 }
 
+// GetChunk returns a single chunk by file_id and chunk index
+func (db *DB) GetChunk(fileID string, index int) (*model.Chunk, error) {
+	c := &model.Chunk{}
+	var up int
+	err := db.conn.QueryRow(
+		`SELECT id, file_id, idx, size, sha256, uploaded, storage_key
+		 FROM chunks WHERE file_id = ? AND idx = ?`, fileID, index,
+	).Scan(&c.ID, &c.FileID, &c.Index, &c.Size, &c.SHA256, &up, &c.StorageKey)
+	if err != nil {
+		return nil, err
+	}
+	c.Uploaded = up != 0
+	return c, nil
+}
+
 func (db *DB) GetChunksByFile(fileID string) ([]*model.Chunk, error) {
 	rows, err := db.conn.Query(
 		`SELECT id, file_id, idx, size, sha256, uploaded, storage_key

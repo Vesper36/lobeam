@@ -228,6 +228,17 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resume support: check if chunk already uploaded, skip if so
+	if existingChunk, err := s.db.GetChunk(fileID, chunkIndex); err == nil && existingChunk != nil && existingChunk.Uploaded {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"chunk_index": chunkIndex,
+			"file_id":     fileID,
+			"size":        existingChunk.Size,
+			"resumed":     true,
+		})
+		return
+	}
+
 	// Read chunk data
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -375,6 +386,12 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-File-Size", strconv.FormatInt(f.Size, 10))
 	w.Header().Set("X-Encrypted", strconv.FormatBool(t.Encrypted))
 	w.Header().Set("Accept-Ranges", "bytes")
+
+	// Handle HTTP Range for resumeable downloads
+	if rangeHdr := r.Header.Get("Range"); rangeHdr != "" && !t.Encrypted {
+		s.serveRange(w, r, f, chunks, rangeHdr)
+		return
+	}
 
 	// Stream chunks
 	for _, chunk := range chunks {
@@ -609,4 +626,62 @@ func isPreviewableExt(name string) bool {
 		}
 	}
 	return false
+}
+
+// serveRange handles HTTP Range requests for resumeable downloads
+func (s *Server) serveRange(w http.ResponseWriter, r *http.Request, file *model.File, chunks []*model.Chunk, rangeHdr string) {
+	var start, end int64 = 0, file.Size - 1
+	if _, err := fmt.Sscanf(rangeHdr, "bytes=%d-%d", &start, &end); err != nil {
+		fmt.Sscanf(rangeHdr, "bytes=%d-", &start)
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end >= file.Size {
+		end = file.Size - 1
+	}
+	if start > end {
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.Size))
+		return
+	}
+	length := end - start + 1
+	w.Header().Set("Content-Type", file.MimeType)
+	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, file.Size))
+	w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.WriteHeader(http.StatusPartialContent)
+
+	var written int64
+	for _, c := range chunks {
+		if written >= length {
+			break
+		}
+		rd, err := s.store.Get(c.StorageKey)
+		if err != nil {
+			return
+		}
+		data, _ := io.ReadAll(rd)
+		rd.Close()
+		cs := int64(len(data))
+		if start >= cs {
+			start -= cs
+			end -= cs
+			continue
+		}
+		chunkStart := start
+		if chunkStart < 0 {
+			chunkStart = 0
+		}
+		chunkEnd := cs - 1
+		if end < chunkEnd {
+			chunkEnd = end
+		}
+		if chunkStart < cs {
+			n, _ := w.Write(data[chunkStart : chunkEnd+1])
+			written += int64(n)
+		}
+		start = 0
+		end -= cs
+	}
 }
