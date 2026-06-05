@@ -64,6 +64,12 @@ func main() {
 		uploadCmd(os.Args[2:])
 	case "login":
 		loginCmd(os.Args[2:])
+	case "download":
+		downloadCmd(os.Args[2:])
+	case "list":
+		listCmd(os.Args[2:])
+	case "delete":
+		deleteCmd(os.Args[2:])
 	case "version", "-v", "--version":
 		fmt.Println("lobeam-cli 1.0.0")
 	default:
@@ -80,6 +86,9 @@ Usage:
 Commands:
   login                  Login to LoBeam server
   upload <file>...       Upload files to LoBeam server
+  download <id>          Download files from a transfer
+  list                   List your transfers
+  delete <id>            Delete a transfer
   version                Show version
 
 Options:
@@ -266,6 +275,161 @@ func getServer() string {
 		return *server
 	}
 	return defaultServer
+}
+
+func downloadCmd(args []string) {
+	fs := flag.NewFlagSet("download", flag.ExitOnError)
+	fs.StringVar(server, "server", getServer(), "LoBeam server URL")
+	outDir := fs.String("o", ".", "Output directory")
+	fs.Parse(args)
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Error: transfer ID required (from URL: /d/<id>)")
+		os.Exit(1)
+	}
+	transferID := fs.Arg(0)
+
+	// Get transfer info
+	resp, err := http.Get(*server + "/api/t/" + transferID)
+	if err != nil || resp.StatusCode >= 400 {
+		fmt.Fprintf(os.Stderr, "Transfer not found: %s\n", transferID)
+		os.Exit(1)
+	}
+	resp.Body.Close()
+
+	// Get file list
+	resp2, err := http.Get(*server + "/api/t/" + transferID + "/files")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp2.Body.Close()
+	var files []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Size int64  `json:"size"`
+	}
+	json.NewDecoder(resp2.Body).Decode(&files)
+
+	if len(files) == 0 {
+		fmt.Println("No files in transfer")
+		return
+	}
+
+	for _, file := range files {
+		outPath := filepath.Join(*outDir, file.Name)
+		fmt.Printf("Downloading %s (%s)...\n", file.Name, formatBytes(file.Size))
+
+		dlResp, err := http.Get(*server + "/api/t/" + transferID + "/download/" + file.ID)
+		if err != nil || dlResp.StatusCode >= 400 {
+			fmt.Fprintf(os.Stderr, "  Failed: %v\n", err)
+			continue
+		}
+		outFile, err := os.Create(outPath)
+		if err != nil {
+			dlResp.Body.Close()
+			fmt.Fprintf(os.Stderr, "  Failed to create file: %v\n", err)
+			continue
+		}
+		written, _ := io.Copy(outFile, dlResp.Body)
+		outFile.Close()
+		dlResp.Body.Close()
+		fmt.Printf("  Saved %s (%s)\n", outPath, formatBytes(written))
+	}
+}
+
+func listCmd(args []string) {
+	fs := flag.NewFlagSet("list", flag.ExitOnError)
+	fs.StringVar(server, "server", getServer(), "LoBeam server URL")
+	fs.Parse(args)
+
+	token := getAuthToken()
+	if token == "" {
+		fmt.Fprintln(os.Stderr, "Error: not logged in. Run 'lobeam-cli login' first.")
+		os.Exit(1)
+	}
+
+	req, _ := http.NewRequest("GET", *server+"/api/transfers", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	var transfers []struct {
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Status       string `json:"status"`
+		FileCount    int    `json:"file_count"`
+		TotalSize    int64  `json:"total_size"`
+		DownloadCount int   `json:"download_count"`
+		MaxDownloads int    `json:"max_downloads"`
+	}
+	json.NewDecoder(resp.Body).Decode(&transfers)
+
+	if len(transfers) == 0 {
+		fmt.Println("No transfers found")
+		return
+	}
+
+	fmt.Printf("%-10s %-30s %-8s %-6s %-12s %-10s\n", "ID", "Name", "Status", "Files", "Size", "Downloads")
+	fmt.Println("────────────────────────────────────────────────────────────────────────────────────────")
+	for _, t := range transfers {
+		name := t.Name
+		if len(name) > 28 {
+			name = name[:25] + "..."
+		}
+		fmt.Printf("%-10s %-30s %-8s %-6d %-12s %d/%d\n",
+			t.ID, name, t.Status, t.FileCount, formatBytes(t.TotalSize), t.DownloadCount, t.MaxDownloads)
+	}
+}
+
+func deleteCmd(args []string) {
+	fs := flag.NewFlagSet("delete", flag.ExitOnError)
+	fs.StringVar(server, "server", getServer(), "LoBeam server URL")
+	fs.Parse(args)
+
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "Error: transfer ID required")
+		os.Exit(1)
+	}
+	transferID := fs.Arg(0)
+
+	token := getAuthToken()
+	if token == "" {
+		fmt.Fprintln(os.Stderr, "Error: not logged in. Run 'lobeam-cli login' first.")
+		os.Exit(1)
+	}
+
+	req, _ := http.NewRequest("DELETE", *server+"/api/transfers/"+transferID, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		b, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(os.Stderr, "Error: %s\n", string(b))
+		os.Exit(1)
+	}
+
+	fmt.Printf("Transfer %s deleted\n", transferID)
+}
+
+func getAuthToken() string {
+	token := os.Getenv("LOBEAM_TOKEN")
+	if token == "" {
+		home, _ := os.UserHomeDir()
+		if data, err := os.ReadFile(filepath.Join(home, ".lobeam-token")); err == nil {
+			token = string(data)
+		}
+	}
+	return token
 }
 
 func login(server, username, password string) (*authResp, error) {
