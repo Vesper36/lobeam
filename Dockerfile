@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/internal/server/static ./internal/server/static
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /lobeam ./cmd/lobeam
+RUN CGO_ENABLED=1 GOTOOLCHAIN=auto go build -ldflags="-s -w" -o /lobeam ./cmd/lobeam
 
 # Runtime
 FROM alpine:3.21
