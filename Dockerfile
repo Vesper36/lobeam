@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # Build backend
-FROM golang:alpine AS backend
+FROM golang:latest AS backend
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
