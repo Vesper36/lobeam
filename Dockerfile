@@ -6,14 +6,15 @@ RUN npm install
 COPY web/ ./
 RUN npm run build
 
-# Build backend
-FROM golang:latest AS backend
+# Build backend (alpine + gcc for musl-linked CGO binary)
+FROM golang:1.24-alpine AS backend
+RUN apk add --no-cache gcc musl-dev
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download
+RUN GOTOOLCHAIN=auto go mod download
 COPY . .
 COPY --from=frontend /app/cmd/lobeam/static ./cmd/lobeam/static
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /lobeam ./cmd/lobeam
+RUN CGO_ENABLED=1 GOTOOLCHAIN=auto go build -ldflags="-s -w" -o /lobeam ./cmd/lobeam
 
 # Runtime
 FROM alpine:3.21
