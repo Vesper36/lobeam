@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LoBeam Outlook Add-in Manifest -->
+<!-- This is a reference manifest for building an Outlook add-in -->
+<!-- See: https://learn.microsoft.com/en-us/office/dev/add-ins/outlook/outlook-add-ins-overview -->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="MailApp">
+  <Id>lobeam-outlook-addin</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>LoBeam</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="LoBeam File Transfer" />
+  <Description DefaultValue="Upload large files to LoBeam and share download links" />
+  <IconUrl DefaultValue="https://files.example.com/icon-32.png" />
+  <Hosts>
+    <Host Name="Mailbox" />
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://files.example.com/outlook/read.html" />
+        <RequestedHeight>250</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+    <Form xsi:type="ItemCompose">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://files.example.com/outlook/compose.html" />
+        <RequestedHeight>250</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadWriteItem</Permissions>
+</OfficeApp>
