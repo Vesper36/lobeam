@@ -40,7 +40,8 @@
       "Bash(sed -i '' \"s|../cmd/mimo/static|../cmd/lobeam/static|g\" web/svelte.config.js)",
       "Bash(sed -i '' 's|docker build -t mimo:|docker build -t lobeam:|g; s|## MIMO |## LoBeam |g; s|-o mimo$|-o lobeam|g; s|chmod +x mimo|chmod +x lobeam|g; s|brew install mimo|brew install lobeam|g; s|mimo-data|lobeam-data|g' .github/workflows/release.yml)",
       "Bash(sed -i '' 's|./mimo|./lobeam|g; s|LOBEAM_PID|LOBEAM_PID|g' .github/workflows/ci.yml)",
-      "Bash(sed -i '' 's|<span>MIMO - Self-hosted file transfer</span>|<span>LoBeam - Self-hosted file transfer</span>|g; s|github.com/vesper/mimo|github.com/Vesper36/lobeam|g' web/src/routes/+layout.svelte)"
+      "Bash(sed -i '' 's|<span>MIMO - Self-hosted file transfer</span>|<span>LoBeam - Self-hosted file transfer</span>|g; s|github.com/vesper/mimo|github.com/Vesper36/lobeam|g' web/src/routes/+layout.svelte)",
+      "Bash(git commit *)"
     ]
   }
 }

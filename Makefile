@@ -1,10 +1,10 @@
-.PHONY: build server cli frontend test clean run docker-build docker-run release
+.PHONY: build server cli mcp frontend test clean run docker-build docker-run release
 
 VERSION ?= 1.0.0
 LDFLAGS = -ldflags="-s -w -X main.version=$(VERSION)"
 
 # Build everything
-build: server cli
+build: server cli mcp
 
 # Build server with embedded frontend
 server: frontend
@@ -13,6 +13,10 @@ server: frontend
 # Build CLI
 cli:
 	go build $(LDFLAGS) -o dist/lobeam-cli ./cmd/lobeam-cli/
+
+# Build MCP server (for AI tool integration)
+mcp:
+	go build $(LDFLAGS) -o dist/lobeam-mcp ./cmd/lobeam-mcp/
 
 # Build frontend
 frontend:

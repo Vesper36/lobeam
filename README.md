@@ -16,16 +16,22 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 | Web UI | Y | Y | Y | - | **Y** |
 | E2E Encryption | - | Y | - | Y | **Y** |
 | P2P Direct Transfer | - | - | Y | Y | **Y** |
-| Chunked Upload / 续传 | - | - | - | - | **Y** |
+| Screen/Camera Sharing | - | - | - | - | **Y** |
+| Chunked Upload / Resume | - | - | - | - | **Y** |
+| Resume Download (HTTP Range) | - | - | - | - | **Y** |
 | Multi-user / RBAC | Y | - | - | - | **Y** |
 | Brand Customization | Pro | - | - | - | **Y** |
 | Network Clipboard | - | - | - | - | **Y** |
 | File Requests | Y | - | - | - | **Y** |
 | Web Folders | Y | - | - | - | **Y** |
+| File Previews | Y | - | Y | - | **Y** |
+| QR Codes | - | - | - | - | **Y** |
+| Email Notifications | Y | - | - | - | **Y** |
 | CLI Tool | - | - | - | Y | **Y** |
+| MCP Server (AI) | - | - | - | - | **Y** |
+| Embed Form | - | - | - | - | **Y** |
 | Single Binary Deploy | - | - | - | Y | **Y** |
 | No Registration Required | - | Y | Y | Y | **Y** |
-| Embed via 1-line HTML | - | - | - | - | **Y** |
 
 ## Features
 
@@ -184,11 +190,14 @@ GET /api/settings
 # Get transfer info
 GET /api/t/{id}
 GET /api/t/{id}/files
-GET /api/t/{id}/download/{fileID}
+GET /api/t/{id}/download/{fileID}  # Supports HTTP Range for resumeable downloads
+
+# Email a transfer link
+POST /api/t/{id}/email
 
 # Upload (no auth required for anonymous)
-POST /api/upload/init
-POST /api/upload/chunk
+POST /api/upload/init               # Returns download_url immediately (real-time sharing)
+POST /api/upload/chunk              # Supports resume: sends resumed=true if chunk exists
 POST /api/upload/complete/{id}
 
 # Network clipboard
@@ -198,6 +207,7 @@ GET /api/clipboard/{id}
 # P2P transfer
 POST /api/p2p/create
 GET /api/p2p/{code}
+GET /api/p2p/ws/{code}             # WebSocket for WebRTC signaling
 
 # Web folders (public access)
 GET /api/f/{token}
@@ -207,6 +217,7 @@ GET /api/f/{token}/download/{fileID}
 
 # File requests
 GET /api/r/{id}
+POST /api/r/{id}/submit
 ```
 
 ### Authenticated Endpoints
@@ -259,6 +270,28 @@ Or use a button:
 </a>
 ```
 
+## MCP Server (AI Tool Integration)
+
+LoBeam includes a built-in MCP server, letting AI tools like Claude, Cursor, and other MCP-compatible clients upload files and get shareable download links.
+
+```json
+// Claude Desktop / Cursor config
+{
+  "mcpServers": {
+    "lobeam": {
+      "command": "lobeam-mcp",
+      "args": ["-server", "https://files.example.com"]
+    }
+  }
+}
+```
+
+Available tools:
+- `upload_file` -- Upload a file and get a shareable download link
+- `create_clipboard` -- Create a network clipboard entry
+- `create_web_folder` -- Create a shared web folder
+- `create_file_request` -- Create a file request link to collect files
+
 ## Architecture
 
 ```
@@ -301,6 +334,7 @@ Or use a button:
 - [x] Chunked upload with 续传
 - [x] E2E encryption (AES-256-GCM)
 - [x] P2P transfer via WebRTC
+- [x] P2P screen & camera sharing
 - [x] Network clipboard
 - [x] Multi-user system
 - [x] Expiring links (time + download count)
@@ -309,16 +343,22 @@ Or use a button:
 - [x] Web folders (multi-user collections)
 - [x] File requests
 - [x] CLI tool
-- [x] Email notifications (SMTP)
-- [ ] File previews (image/video/document)
+- [x] MCP server (AI tool integration)
+- [x] Email notifications (SMTP + auto-send)
+- [x] File previews (image/video/audio/document)
+- [x] QR code generation
+- [x] Embedded upload form (1-line HTML)
+- [x] Real-time sharing (share before upload completes)
+- [x] HTTP Range download (resumeable downloads)
+- [x] Chunk resume upload (skip already uploaded chunks)
+- [x] Admin panel (users, brand, settings, audit logs)
 - [ ] SSO/OIDC integration
-- [ ] Audit logs dashboard
 - [ ] ShareX integration
 - [ ] Chrome extension
 - [ ] Discord/Slack bot
+- [ ] Outlook plugin
 - [ ] Mobile apps (iOS/Android)
 - [ ] WebTorrent multi-peer distribution
-- [ ] Screen sharing
 
 ## Contributing
 
