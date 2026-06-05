@@ -4,11 +4,11 @@ services:
     container_name: lobeam
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "50030:50030"
     volumes:
       - lobeam-data:/data
     environment:
-      - LOBEAM_PUBLIC_URL=http://localhost:8080
+      - LOBEAM_PUBLIC_URL=http://38.55.146.183:50030
       - LOBEAM_JWT_SECRET=change-this-to-a-random-secret
       - LOBEAM_ALLOW_ANONYMOUS=true
       - LOBEAM_TRANSFER_EXPIRY_HOURS=24
