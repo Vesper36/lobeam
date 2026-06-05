@@ -13,6 +13,8 @@
   let preview = $state(null);
   let copied = $state(false);
   let qrDataUrl = $state('');
+  let wsConnected = $state(false);
+  let liveDownloadCount = $state(0);
 
   const transferId = $derived($page.params.id);
 
@@ -24,13 +26,33 @@
     try {
       transfer = await api.getTransfer(transferId);
       files = await api.getTransferFiles(transferId);
+      liveDownloadCount = transfer.download_count;
       const url = `${window.location.origin}/d/${transferId}`;
       generateQR(url).then(u => qrDataUrl = u);
+      // Connect to WebSocket for live download updates
+      connectWS(transferId);
     } catch (err) {
       error = err.message;
     } finally {
       loading = false;
     }
+  }
+
+  function connectWS(transferID) {
+    try {
+      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ws?room=${transferID}`;
+      const socket = new WebSocket(wsUrl);
+      socket.onopen = () => { wsConnected = true; };
+      socket.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'download' && msg.payload) {
+            liveDownloadCount = msg.payload.download || liveDownloadCount + 1;
+          }
+        } catch {}
+      };
+      socket.onclose = () => { wsConnected = false; };
+    } catch {}
   }
 
   function copyLink() {
@@ -147,7 +169,7 @@
         {/if}
 
         <div class="flex items-center gap-4 mt-4 text-xs text-gray-500">
-          <span>Downloads: {transfer.download_count}/{transfer.max_downloads}</span>
+          <span>Downloads: {liveDownloadCount}/{transfer.max_downloads}</span>
           <span>Expires: {timeUntil(transfer.expires_at)}</span>
           {#if transfer.encrypted}
             <span class="flex items-center gap-1 text-green-400">
