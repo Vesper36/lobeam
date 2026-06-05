@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "lobeam": {
+      "command": "lobeam-mcp",
+      "args": ["-server", "https://files.example.com"],
+      "env": {
+        "LOBEAM_SERVER": "https://files.example.com"
+      }
+    }
+  }
+}
