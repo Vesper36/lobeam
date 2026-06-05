@@ -136,6 +136,18 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 		req.ExpiryHours = int(s.cfg.TransferExpiry.Hours())
 	}
 
+	// Storage quota check for authenticated users
+	userID := getUserID(r)
+	if userID > 0 {
+		u, err := s.userSvc.GetUser(userID)
+		if err == nil && u.StorageLimit > 0 {
+			if u.StorageUsed >= u.StorageLimit {
+				writeError(w, http.StatusForbidden, "storage quota exceeded")
+				return
+			}
+		}
+	}
+
 	t := &model.Transfer{
 		ID:            uuid.New().String()[:8],
 		UserID:        int64Ptr(getUserID(r)),
@@ -185,7 +197,6 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Audit log
-	userID := getUserID(r)
 	if userID > 0 {
 		s.db.CreateAuditLog(&userID, "upload", "transfer", fmt.Sprintf("Created transfer %s", t.ID), r.RemoteAddr)
 	}
@@ -407,6 +418,19 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Audit log
 	s.db.CreateAuditLog(t.UserID, "download", "transfer", fmt.Sprintf("Downloaded file %s from transfer %s", f.Name, transferID), r.RemoteAddr)
+
+	// Notify via WebSocket if sender is connected
+	s.hub.BroadcastToRoom(transferID, "download", map[string]interface{}{
+		"file":     f.Name,
+		"file_id":  f.ID,
+		"download": t.DownloadCount + 1,
+		"max":      t.MaxDownloads,
+	})
+
+	// Auto-send download notification email if sender_email set
+	if t.SenderEmail != "" && s.notify != nil {
+		go s.notify.SendDownloadNotification(t.SenderEmail, transferID, f.Name)
+	}
 }
 
 // ---- Clipboard Handlers ----
