@@ -12,7 +12,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=frontend /app/internal/server/static ./internal/server/static
+COPY --from=frontend /app/cmd/lobeam/static ./cmd/lobeam/static
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /lobeam ./cmd/lobeam
 
 # Runtime
