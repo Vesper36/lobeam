@@ -9,7 +9,7 @@ cmd/mimo/mimo
 
 # Go
 vendor/
-go.sum
+# go.sum is committed for reproducible builds
 
 # Data
 data/
@@ -38,6 +38,3 @@ Thumbs.db
 .env
 .env.local
 .env.production
-mimo
-go.sum
-mimo-cli
