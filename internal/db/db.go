@@ -44,7 +44,7 @@ func (db *DB) migrate() error {
 
 	CREATE TABLE IF NOT EXISTS transfers (
 		id TEXT PRIMARY KEY,
-		user_id INTEGER REFERENCES users(id),
+		user_id INTEGER,
 		name TEXT NOT NULL,
 		mode TEXT NOT NULL DEFAULT 'link',
 		status TEXT NOT NULL DEFAULT 'pending',
@@ -87,7 +87,7 @@ func (db *DB) migrate() error {
 
 	CREATE TABLE IF NOT EXISTS clipboard (
 		id TEXT PRIMARY KEY,
-		user_id INTEGER REFERENCES users(id),
+		user_id INTEGER,
 		content TEXT NOT NULL,
 		language TEXT NOT NULL DEFAULT '',
 		encrypted INTEGER NOT NULL DEFAULT 0,
@@ -98,7 +98,7 @@ func (db *DB) migrate() error {
 	CREATE TABLE IF NOT EXISTS p2p_sessions (
 		id TEXT PRIMARY KEY,
 		code TEXT UNIQUE NOT NULL,
-		creator_id INTEGER REFERENCES users(id),
+		creator_id INTEGER,
 		status TEXT NOT NULL DEFAULT 'waiting',
 		files TEXT NOT NULL DEFAULT '[]',
 		expires_at DATETIME NOT NULL,
@@ -130,10 +130,14 @@ func (db *DB) migrate() error {
 // ---- Transfer ----
 
 func (db *DB) CreateTransfer(t *model.Transfer) error {
+	var userID interface{}
+	if t.UserID != nil {
+		userID = *t.UserID
+	}
 	_, err := db.conn.Exec(
 		`INSERT INTO transfers (id, user_id, name, mode, status, encrypted, password_hash, max_downloads, expires_at, note, sender_email, receiver_email)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.UserID, t.Name, t.Mode, t.Status, boolToInt(t.Encrypted), t.PasswordHash, t.MaxDownloads, t.ExpiresAt, t.Note, t.SenderEmail, t.ReceiverEmail,
+		t.ID, userID, t.Name, t.Mode, t.Status, boolToInt(t.Encrypted), t.PasswordHash, t.MaxDownloads, t.ExpiresAt, t.Note, t.SenderEmail, t.ReceiverEmail,
 	)
 	return err
 }
@@ -316,22 +320,31 @@ func (db *DB) GetUploadedChunkIndexes(fileID string) ([]int, error) {
 // ---- Clipboard ----
 
 func (db *DB) CreateClipboardEntry(e *model.ClipboardEntry) error {
+	var userID interface{}
+	if e.UserID != nil {
+		userID = *e.UserID
+	}
 	_, err := db.conn.Exec(
 		`INSERT INTO clipboard (id, user_id, content, language, encrypted, expires_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
-		e.ID, e.UserID, e.Content, e.Language, boolToInt(e.Encrypted), e.ExpiresAt,
+		e.ID, userID, e.Content, e.Language, boolToInt(e.Encrypted), e.ExpiresAt,
 	)
 	return err
 }
 
 func (db *DB) GetClipboardEntry(id string) (*model.ClipboardEntry, error) {
 	e := &model.ClipboardEntry{}
+	var userID sql.NullInt64
 	var enc int
 	err := db.conn.QueryRow(
 		`SELECT id, user_id, content, language, encrypted, expires_at, created_at FROM clipboard WHERE id = ?`, id,
-	).Scan(&e.ID, &e.UserID, &e.Content, &e.Language, &enc, &e.ExpiresAt, &e.CreatedAt)
+	).Scan(&e.ID, &userID, &e.Content, &e.Language, &enc, &e.ExpiresAt, &e.CreatedAt)
 	if err != nil {
 		return nil, err
+	}
+	if userID.Valid {
+		v := userID.Int64
+		e.UserID = &v
 	}
 	e.Encrypted = enc != 0
 	return e, nil
@@ -340,21 +353,30 @@ func (db *DB) GetClipboardEntry(id string) (*model.ClipboardEntry, error) {
 // ---- P2P Session ----
 
 func (db *DB) CreateP2PSession(s *model.P2PSession) error {
+	var creatorID interface{}
+	if s.CreatorID != nil {
+		creatorID = *s.CreatorID
+	}
 	_, err := db.conn.Exec(
 		`INSERT INTO p2p_sessions (id, code, creator_id, status, files, expires_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
-		s.ID, s.Code, s.CreatorID, s.Status, "[]", s.ExpiresAt,
+		s.ID, s.Code, creatorID, s.Status, "[]", s.ExpiresAt,
 	)
 	return err
 }
 
 func (db *DB) GetP2PSessionByCode(code string) (*model.P2PSession, error) {
 	s := &model.P2PSession{}
+	var creatorID sql.NullInt64
 	err := db.conn.QueryRow(
 		`SELECT id, code, creator_id, status, files, expires_at, created_at FROM p2p_sessions WHERE code = ? AND expires_at > CURRENT_TIMESTAMP`, code,
-	).Scan(&s.ID, &s.Code, &s.CreatorID, &s.Status, &s.Files, &s.ExpiresAt, &s.CreatedAt)
+	).Scan(&s.ID, &s.Code, &creatorID, &s.Status, &s.Files, &s.ExpiresAt, &s.CreatedAt)
 	if err != nil {
 		return nil, err
+	}
+	if creatorID.Valid {
+		v := creatorID.Int64
+		s.CreatorID = &v
 	}
 	return s, nil
 }

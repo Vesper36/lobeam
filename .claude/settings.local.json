@@ -12,7 +12,17 @@
       "Bash(go build *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'feat: initial MIMO implementation *)"
+      "Bash(git commit -m 'feat: initial MIMO implementation *)",
+      "Bash(gh repo *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(curl *)",
+      "Bash(npm install *)",
+      "Bash(npm --version)",
+      "Bash(npm run *)",
+      "Bash(MIMO_DATA_DIR=./test-data MIMO_PORT=18080 ./mimo)",
+      "Bash(kill %1)"
     ]
   }
 }

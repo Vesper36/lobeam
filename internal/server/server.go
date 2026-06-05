@@ -68,6 +68,11 @@ func (s *Server) Router() http.Handler {
 		r.Get("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Post("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Get("/clipboard/{id}", s.handleGetClipboard)
+		r.Post("/clipboard", s.handleCreateClipboard)
+
+		r.Post("/upload/init", s.handleUploadInit)
+		r.Post("/upload/chunk", s.handleUploadChunk)
+		r.Post("/upload/complete/{id}", s.handleUploadComplete)
 
 		r.Post("/p2p/create", s.handleCreateP2P)
 		r.Get("/p2p/{code}", s.handleGetP2P)
@@ -77,12 +82,6 @@ func (s *Server) Router() http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.authMiddleware)
-
-			r.Post("/upload/init", s.handleUploadInit)
-			r.Post("/upload/chunk", s.handleUploadChunk)
-			r.Post("/upload/complete/{id}", s.handleUploadComplete)
-
-			r.Post("/clipboard", s.handleCreateClipboard)
 
 			r.Get("/transfers", s.handleListTransfers)
 			r.Delete("/transfers/{id}", s.handleDeleteTransfer)

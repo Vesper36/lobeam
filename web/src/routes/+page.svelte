@@ -165,7 +165,7 @@
     <div
       class="relative border-2 border-dashed rounded-2xl transition-all duration-200 {dragOver ? 'border-violet-400 bg-violet-500/5' : 'border-gray-700 hover:border-gray-600'}"
       ondrop={handleDrop}
-      ondragover|preventDefault={() => dragOver = true}
+      ondragover={(e) => { e.preventDefault(); dragOver = true; }}
       ondragleave={() => dragOver = false}
       role="region"
       aria-label="File upload drop zone"

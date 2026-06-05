@@ -49,13 +49,18 @@ type Config struct {
 }
 
 func Load() *Config {
+	dataDir := envStr("MIMO_DATA_DIR", "./data")
+	dbPath := envStr("MIMO_DB_PATH", dataDir+"/mimo.db")
+
+	_ = os.MkdirAll(dataDir, 0755)
+
 	return &Config{
 		Host:         envStr("MIMO_HOST", "0.0.0.0"),
 		Port:         envInt("MIMO_PORT", 8080),
 		PublicURL:    envStr("MIMO_PUBLIC_URL", "http://localhost:8080"),
-		DataDir:      envStr("MIMO_DATA_DIR", "./data"),
+		DataDir:      dataDir,
 
-		DBPath: envStr("MIMO_DB_PATH", "./data/mimo.db"),
+		DBPath: dbPath,
 
 		StorageType: envStr("MIMO_STORAGE_TYPE", "local"),
 		MaxFileSize: int64(envInt("MIMO_MAX_FILE_SIZE", 0)),

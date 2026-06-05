@@ -155,7 +155,7 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.db.CreateTransfer(t); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create transfer")
+		writeError(w, http.StatusInternalServerError, "failed to create transfer: "+err.Error())
 		return
 	}
 
