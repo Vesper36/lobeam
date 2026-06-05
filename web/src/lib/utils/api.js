@@ -153,6 +153,7 @@ export const api = {
   // Admin
   listUsers: () => request('/admin/users'),
   deleteUser: (id) => request(`/admin/users/${id}`, { method: 'DELETE' }),
+  updateUser: (id, data) => request(`/admin/users/${id}`, { method: 'PUT', body: data }),
   getAuditLogs: () => request('/admin/logs'),
 
   // Profile

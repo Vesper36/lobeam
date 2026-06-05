@@ -590,6 +590,40 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, _ := strconv.ParseInt(idStr, 10, 64)
+
+	var req struct {
+		Role         string `json:"role"`
+		StorageLimit int64  `json:"storage_limit"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Role != "" {
+		if err := s.db.UpdateUserRole(id, req.Role); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update role")
+			return
+		}
+	}
+	if req.StorageLimit > 0 {
+		if err := s.db.UpdateUserStorageLimit(id, req.StorageLimit); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update storage limit")
+			return
+		}
+	}
+
+	u, err := s.userSvc.GetUser(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, u)
+}
+
 // ---- Helpers ----
 
 func int64Ptr(v int64) *int64 {

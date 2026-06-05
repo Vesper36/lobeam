@@ -589,6 +589,16 @@ func (db *DB) UpdateUserStorageUsed(id int64, delta int64) error {
 	return err
 }
 
+func (db *DB) UpdateUserRole(id int64, role string) error {
+	_, err := db.conn.Exec(`UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, role, id)
+	return err
+}
+
+func (db *DB) UpdateUserStorageLimit(id int64, limit int64) error {
+	_, err := db.conn.Exec(`UPDATE users SET storage_limit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, limit, id)
+	return err
+}
+
 func (db *DB) DeleteUser(id int64) error {
 	_, err := db.conn.Exec(`DELETE FROM users WHERE id = ?`, id)
 	return err

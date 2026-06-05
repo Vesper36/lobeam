@@ -126,6 +126,7 @@ func (s *Server) Router() http.Handler {
 				r.Get("/admin/users", s.handleListUsers)
 				r.Get("/admin/logs", s.handleGetAuditLogs)
 				r.Delete("/admin/users/{id}", s.handleDeleteUser)
+				r.Put("/admin/users/{id}", s.handleUpdateUser)
 			})
 		})
 	})

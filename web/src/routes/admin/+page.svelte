@@ -157,9 +157,22 @@
                 <p class="font-medium">{user.username}</p>
                 <p class="text-xs text-gray-500">{user.email}</p>
               </div>
-              <span class="px-2 py-1 rounded text-xs font-medium {user.role === 'admin' ? 'bg-violet-500/10 text-violet-400' : 'bg-gray-800 text-gray-400'}">
-                {user.role}
-              </span>
+              <div class="text-xs text-gray-500">
+                {#if user.storage_limit > 0}
+                  {formatBytes(user.storage_used)} / {formatBytes(user.storage_limit)}
+                {:else}
+                  {formatBytes(user.storage_used)} / unlimited
+                {/if}
+              </div>
+              <select
+                value={user.role}
+                onchange={(e) => api.updateUser(user.id, { role: e.target.value }).then(() => loadAll())}
+                class="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs {user.role === 'admin' ? 'text-violet-400' : 'text-gray-400'}"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+              </select>
               <span class="text-xs text-gray-500">{timeAgo(user.created_at)}</span>
               {#if user.role !== 'admin'}
                 <button
