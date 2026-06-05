@@ -1,0 +1,42 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+mimo
+cmd/mimo/mimo
+
+# Go
+vendor/
+go.sum
+
+# Data
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Node
+node_modules/
+.svelte-kit/
+build/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.production
+mimo
+go.sum

@@ -1,0 +1,24 @@
+services:
+  mimo:
+    build: .
+    container_name: mimo
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - mimo-data:/data
+    environment:
+      - MIMO_PUBLIC_URL=http://localhost:8080
+      - MIMO_JWT_SECRET=change-this-to-a-random-secret
+      - MIMO_ALLOW_ANONYMOUS=true
+      - MIMO_TRANSFER_EXPIRY_HOURS=24
+      - MIMO_MAX_DOWNLOADS=100
+      # SMTP (optional)
+      # - MIMO_SMTP_HOST=smtp.example.com
+      # - MIMO_SMTP_PORT=587
+      # - MIMO_SMTP_USERNAME=user@example.com
+      # - MIMO_SMTP_PASSWORD=password
+      # - MIMO_SMTP_FROM=noreply@example.com
+
+volumes:
+  mimo-data:

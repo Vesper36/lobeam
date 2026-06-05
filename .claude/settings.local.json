@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "mcp__exa__web_search_exa",
+      "mcp__exa__web_fetch_exa",
+      "mcp__context7__resolve-library-id",
+      "Bash(gh api graphql -f 'query= *)",
+      "Bash(python3 -m json.tool)",
+      "mcp__context7__query-docs",
+      "Bash(go mod *)",
+      "Bash(go build *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat: initial MIMO implementation *)"
+    ]
+  }
+}
