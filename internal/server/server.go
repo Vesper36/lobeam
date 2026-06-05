@@ -51,11 +51,12 @@ func (s *Server) Router() http.Handler {
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.Timeout(0))
+	r.Use(chiMiddleware.Compress(5, "text/html", "application/json", "text/css", "application/javascript"))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Encryption-Key", "X-Transfer-ID", "X-File-ID", "X-Chunk-Index", "X-Total-Chunks", "X-File-Name", "X-File-Size", "X-Mime-Type", "X-Chunk-Hash"},
-		ExposedHeaders:   []string{"X-Upload-Offset", "X-Total-Size", "X-File-Name", "X-File-Size", "X-Encrypted"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Encryption-Key", "X-Transfer-ID", "X-File-ID", "X-Chunk-Index", "X-Total-Chunks", "X-File-Name", "X-File-Size", "X-Mime-Type", "X-Chunk-Hash", "X-Uploader-Name", "X-Uploader-Email", "X-Password"},
+		ExposedHeaders:   []string{"X-Upload-Offset", "X-Total-Size", "X-File-Name", "X-File-Size", "X-Encrypted", "Accept-Ranges", "Content-Range"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
