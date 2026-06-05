@@ -1,28 +1,14 @@
-<p align="center">
-  <img src="docs/logo.svg" width="120" alt="MIMO Logo">
-</p>
+# MIMO
 
-<h1 align="center">MIMO</h1>
-<p align="center"><strong>Modern Intelligent Managed Operations</strong></p>
-<p align="center">Self-hosted file transfer platform with E2E encryption, P2P direct transfer, and enterprise features.</p>
+**Modern Intelligent Managed Operations** -- Self-hosted file transfer platform.
 
-<p align="center">
-  <a href="#features">Features</a> &bull;
-  <a href="#quick-start">Quick Start</a> &bull;
-  <a href="#deployment">Deployment</a> &bull;
-  <a href="#api">API</a> &bull;
-  <a href="#architecture">Architecture</a> &bull;
-  <a href="#roadmap">Roadmap</a> &bull;
-  <a href="#license">License</a>
-</p>
+The only self-hosted file transfer that combines **E2E encryption + P2P direct transfer + chunked upload/续传 + multi-user + brand customization + 网络剪贴板 + file requests + web folders** -- in a single binary.
+
+[Quick Start](#quick-start) | [Features](#features) | [API](#api) | [Deployment](#deployment) | [CLI](#cli) | [Roadmap](#roadmap)
 
 ---
 
-## What is MIMO?
-
-MIMO is a self-hosted file transfer platform that combines the simplicity of WeTransfer with the security of end-to-end encryption and the speed of peer-to-peer transfer -- all in a single binary.
-
-**Why MIMO over alternatives?**
+## Why MIMO?
 
 | Feature | WeTransfer | Send | LocalSend | croc | **MIMO** |
 |---------|:----------:|:----:|:---------:|:----:|:--------:|
@@ -30,41 +16,75 @@ MIMO is a self-hosted file transfer platform that combines the simplicity of WeT
 | Web UI | Y | Y | Y | - | **Y** |
 | E2E Encryption | - | Y | - | Y | **Y** |
 | P2P Direct Transfer | - | - | Y | Y | **Y** |
-| Chunked Upload / Resume | - | - | - | - | **Y** |
+| Chunked Upload / 续传 | - | - | - | - | **Y** |
 | Multi-user / RBAC | Y | - | - | - | **Y** |
 | Brand Customization | Pro | - | - | - | **Y** |
 | Network Clipboard | - | - | - | - | **Y** |
+| File Requests | Y | - | - | - | **Y** |
+| Web Folders | Y | - | - | - | **Y** |
+| CLI Tool | - | - | - | Y | **Y** |
 | Single Binary Deploy | - | - | - | Y | **Y** |
 | No Registration Required | - | Y | Y | Y | **Y** |
+| Embed via 1-line HTML | - | - | - | - | **Y** |
 
 ## Features
 
 ### Core Transfer
 - **Dual Mode Transfer** -- Link mode (upload to server) + P2P mode (direct WebRTC transfer)
-- **Chunked Upload** -- Automatic file splitting with parallel chunk upload
-- **Resume Support** -- Continue interrupted uploads from where they left off
+- **Chunked Upload / 续传** -- Automatic file splitting with parallel chunk upload, resume from interruption
 - **No File Size Limit** -- Send files of any size
 - **Real-time Progress** -- Upload speed, ETA, and percentage tracking
+- **Real-time Sharing** -- Start sharing before upload completes
+
+### Web Folders
+- **双向共享文件箱** -- Multiple users can upload and download
+- **Mode Control** -- `upload_only` (collect), `download_only` (distribute), or `both` (collaborate)
+- **Anonymous Access** -- No registration required, simple token-based URL
+- **Password Protection** -- Optional Argon2id password for sensitive folders
+
+### File Requests
+- **Request Files from Anyone** -- Generate a link to collect files from clients/users
+- **Custom Form Fields** -- Collect sender info (name, email, custom fields)
+- **File Type & Size Limits** -- Restrict what can be uploaded
+- **Auto Expiry** -- Requests auto-close after a configured period
 
 ### Security
 - **End-to-End Encryption** -- AES-256-GCM encryption on the client side
 - **Zero Knowledge** -- Encryption key stays in the URL fragment, never sent to server
-- **Password Protection** -- Optional Argon2id password protection for extra security
+- **Password Protection** -- Optional password protection for transfers
 - **Expiring Links** -- Auto-expire by time and/or download count
 - **Audit Logs** -- Track all file sharing activities
 
 ### Enterprise
 - **Multi-user System** -- Admin, member, and viewer roles
-- **Brand Customization** -- Custom logo, colors, and domain
+- **Brand Customization** -- Custom logo, colors, domain, CSS, HTML
 - **REST API** -- Full programmatic access
-- **SMTP Integration** -- Email notifications for uploads, downloads, and expiry
+- **SMTP Integration** -- Email notifications for uploads, downloads, expiry
 - **Storage Quotas** -- Per-user storage limits
 
+### Brand Customization (Whitelabel)
+- **Custom Domain** -- `files.yourcompany.com` with matching brand
+- **Custom Logo & Colors** -- Full color scheme control
+- **Custom CSS/HTML** -- Match your brand guidelines exactly
+- **Hide "Powered By"** -- White-label option
+- **Custom Email Templates** -- Branded sender address and footer
+
+### Embedded Upload Form
+- **一行 HTML 集成** -- Drop the upload form into any website
+- **Custom Form Fields** -- Add your own fields
+- **Auto Brand Match** -- Inherits your MIMO brand settings
+
 ### Extra Tools
-- **Network Clipboard** -- Share text and code snippets via simple links
-- **P2P Transfer** -- 6-digit code pairing for direct browser-to-browser transfer
-- **File Previews** -- Preview images, documents, and media files
-- **QR Codes** -- Generate QR codes for easy mobile sharing
+- **Network Clipboard** -- Share text, code, notes via simple links
+- **P2P Transfer** -- 6-digit code pairing for direct browser-to-browser
+- **File Previews** -- Preview images, documents, media
+- **QR Codes** -- Generate QR codes for mobile sharing
+- **Real-time Sharing** -- Start sharing before upload completes
+
+### CLI Tool
+- **Cross-platform** -- Linux, macOS, Windows
+- **Upload from Scripts** -- Automate file transfers
+- **Auth Tokens** -- Save credentials securely
 
 ## Quick Start
 
@@ -76,7 +96,7 @@ docker run -d \
   -p 8080:8080 \
   -v mimo-data:/data \
   -e MIMO_PUBLIC_URL=https://files.example.com \
-  -e MIMO_JWT_SECRET=your-secret-key-here \
+  -e MIMO_JWT_SECRET=$(openssl rand -hex 32) \
   mimo/mimo:latest
 ```
 
@@ -92,18 +112,14 @@ services:
       - mimo-data:/data
     environment:
       - MIMO_PUBLIC_URL=https://files.example.com
-      - MIMO_JWT_SECRET=your-secret-key-here
+      - MIMO_JWT_SECRET=your-secret-key
 ```
 
-```bash
-docker compose up -d
-```
-
-### Binary
+### Single Binary
 
 ```bash
-# Download from releases
-curl -L https://github.com/vesper/mimo/releases/latest/download/mimo-linux-amd64 -o mimo
+# Linux/macOS
+curl -L https://github.com/Vesper36/mimo/releases/latest/download/mimo-linux-amd64 -o mimo
 chmod +x mimo
 ./mimo
 ```
@@ -111,25 +127,31 @@ chmod +x mimo
 ### Build from Source
 
 ```bash
-# Clone
-git clone https://github.com/vesper/mimo.git
+git clone https://github.com/Vesper36/mimo.git
 cd mimo
-
-# Build frontend
-cd web && npm install && npm run build && cd ..
-
-# Build backend
-go build -o mimo ./cmd/mimo
-
-# Run
-./mimo
+make build
+./dist/mimo
 ```
 
 Visit `http://localhost:8080` -- the first registered user becomes admin.
 
-## Configuration
+## CLI
 
-All configuration via environment variables:
+```bash
+# Install CLI
+curl -L https://github.com/Vesper36/mimo/releases/latest/download/mimo-cli-linux-amd64 -o mimo-cli
+chmod +x mimo-cli
+
+# Login
+./mimo-cli login -server https://mimo.example.com -user alice -pass secret
+
+# Upload
+./mimo-cli upload ./file.zip
+./mimo-cli upload -encrypted -expiry 168 -downloads 5 ./secret.pdf
+./mimo-cli upload -note "Quarterly report" ./Q4-2026.pdf
+```
+
+## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -137,7 +159,6 @@ All configuration via environment variables:
 | `MIMO_PORT` | `8080` | Listen port |
 | `MIMO_PUBLIC_URL` | `http://localhost:8080` | Public-facing URL |
 | `MIMO_DATA_DIR` | `./data` | Data storage directory |
-| `MIMO_DB_PATH` | `./data/mimo.db` | SQLite database path |
 | `MIMO_JWT_SECRET` | `change-me` | JWT signing secret |
 | `MIMO_MAX_FILE_SIZE` | `0` (unlimited) | Max file size in bytes |
 | `MIMO_TRANSFER_EXPIRY_HOURS` | `24` | Default transfer expiry |
@@ -151,60 +172,115 @@ All configuration via environment variables:
 
 ## API
 
-### Upload a file
+### Public Endpoints
 
 ```bash
-# 1. Initialize transfer
-curl -X POST /api/upload/init \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my-files", "encrypted": true}'
+# Get brand config
+GET /api/brand
 
-# 2. Upload chunks
-curl -X POST /api/upload/chunk \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Transfer-ID: abc123" \
-  -H "X-File-Name: photo.jpg" \
-  -H "X-File-Size: 5242880" \
-  -H "X-Chunk-Index: 0" \
-  -H "X-Total-Chunks: 1" \
-  --data-binary @chunk.bin
+# Get system settings
+GET /api/settings
 
-# 3. Complete transfer
-curl -X POST /api/upload/complete/abc123 \
-  -H "Authorization: Bearer $TOKEN"
+# Get transfer info
+GET /api/t/{id}
+GET /api/t/{id}/files
+GET /api/t/{id}/download/{fileID}
+
+# Upload (no auth required for anonymous)
+POST /api/upload/init
+POST /api/upload/chunk
+POST /api/upload/complete/{id}
+
+# Network clipboard
+POST /api/clipboard
+GET /api/clipboard/{id}
+
+# P2P transfer
+POST /api/p2p/create
+GET /api/p2p/{code}
+
+# Web folders (public access)
+GET /api/f/{token}
+GET /api/f/{token}/files
+POST /api/f/{token}/upload
+GET /api/f/{token}/download/{fileID}
+
+# File requests
+GET /api/r/{id}
 ```
 
-### Download a file
+### Authenticated Endpoints
 
 ```bash
-curl /api/t/abc123/download/file456 -o output.jpg
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/refresh
+
+GET /api/me
+GET /api/transfers
+DELETE /api/transfers/{id}
+
+POST /api/file-requests      # Create file request
+GET /api/file-requests       # List my file requests
+
+POST /api/folders            # Create web folder
+GET /api/folders             # List my folders
 ```
 
-### Create clipboard entry
+### Admin Endpoints
 
 ```bash
-curl -X POST /api/clipboard \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Hello, World!", "language": "text", "hours": 24}'
+GET /api/admin/users
+GET /api/admin/logs
+DELETE /api/admin/users/{id}
+POST /api/brand              # Update brand
+POST /api/settings           # Update system settings
 ```
 
-### Create P2P session
+## Embedded Upload Form
 
-```bash
-curl -X POST /api/p2p/create
-# Returns: {"code": "A1B2C3", "url": "https://files.example.com/p2p/A1B2C3"}
+Add this to any website to embed an upload form:
+
+```html
+<iframe
+  src="https://files.example.com/embed/upload"
+  width="100%"
+  height="500"
+  frameborder="0"
+  allow="camera"
+></iframe>
+```
+
+Or use a button:
+
+```html
+<a href="https://files.example.com/embed/upload" target="_blank">
+  Send us a file
+</a>
 ```
 
 ## Architecture
 
 ```
-Client (Browser)
-  |
-  |-- Upload: HTTP chunked POST -> Go server -> Local FS / S3
-  |-- Download: HTTP GET -> Go server -> Stream from storage
-  |-- P2P: WebSocket signaling -> WebRTC DataChannel (direct)
-  |-- Clipboard: HTTP POST/GET -> SQLite
+┌──────────────────────────────────────────────────────────────┐
+│                        Client (Browser)                       │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│  Upload UI   │  Download UI │  P2P UI      │  Brand Config  │
+│  (chunked)   │  (streamed)  │  (WebRTC)    │  (CSS vars)    │
+└──────────────┴──────────────┴──────────────┴────────────────┘
+       │              │              │              │
+       ▼              ▼              ▼              ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    Go HTTP Server (chi)                       │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│  /api/upload │  /api/t/...  │  /api/p2p    │  /api/brand    │
+│  /api/folder │  /api/clip.. │  /api/req    │  /api/settings │
+└──────────────┴──────────────┴──────────────┴────────────────┘
+       │              │              │              │
+       ▼              ▼              ▼              ▼
+┌──────────────────────────────────────────────────────────────┐
+│   SQLite (metadata) + Local FS (files) + WebSocket (signaling)│
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Tech Stack
@@ -213,63 +289,40 @@ Client (Browser)
 |-----------|-----------|
 | Backend | Go + chi + SQLite |
 | Frontend | SvelteKit + Tailwind CSS |
-| P2P | WebRTC (pion/webrtc) |
+| P2P | WebRTC (browser-native) |
 | Real-time | WebSocket (coder/websocket) |
 | Encryption | AES-256-GCM + Argon2id |
 | Storage | Local FS / MinIO / S3 |
 | Auth | JWT (golang-jwt) |
 | Deployment | Docker / Single binary |
 
-### Project Structure
-
-```
-mimo/
-  cmd/mimo/           # Entry point
-  internal/
-    config/           # Configuration
-    crypto/           # E2E encryption
-    db/               # SQLite database layer
-    model/            # Data models
-    server/           # HTTP/WebSocket handlers
-    storage/          # Storage abstraction
-    user/             # Authentication
-  web/                # SvelteKit frontend
-  migrations/         # Database migrations
-  Dockerfile
-  docker-compose.yml
-```
-
 ## Roadmap
 
-- [x] Chunked upload with resume
+- [x] Chunked upload with 续传
 - [x] E2E encryption (AES-256-GCM)
 - [x] P2P transfer via WebRTC
 - [x] Network clipboard
 - [x] Multi-user system
 - [x] Expiring links (time + download count)
 - [x] Docker deployment
+- [x] Brand customization (whitelabel)
+- [x] Web folders (multi-user collections)
+- [x] File requests
+- [x] CLI tool
+- [x] Email notifications (SMTP)
 - [ ] File previews (image/video/document)
-- [ ] Email notifications (SMTP)
-- [ ] Brand customization (logo, colors, domain)
-- [ ] REST API + CLI tool
 - [ ] SSO/OIDC integration
 - [ ] Audit logs dashboard
-- [ ] Storage quotas
 - [ ] ShareX integration
 - [ ] Chrome extension
+- [ ] Discord/Slack bot
 - [ ] Mobile apps (iOS/Android)
 - [ ] WebTorrent multi-peer distribution
 - [ ] Screen sharing
 
 ## Contributing
 
-Contributions welcome. Please read the contributing guidelines before submitting PRs.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feat/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feat/amazing-feature`)
-5. Open a Pull Request
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 

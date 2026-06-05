@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        run: |
+          npm ci --silent
+          npm run build
+
+      - name: Build server
+        run: go build -o mimo ./cmd/mimo/
+
+      - name: Run tests
+        run: go test -race -timeout 60s ./...
+
+      - name: Test CLI
+        run: go build -o mimo-cli ./cmd/mimo-cli/
+
+      - name: Run server smoke test
+        run: |
+          ./mimo &
+          MIMO_PID=$!
+          sleep 3
+          curl -sf http://localhost:8080/health
+          curl -sf http://localhost:8080/api/brand
+          kill $MIMO_PID

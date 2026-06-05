@@ -107,12 +107,93 @@ func (db *DB) migrate() error {
 
 	CREATE TABLE IF NOT EXISTS audit_logs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER REFERENCES users(id),
+		user_id INTEGER,
 		action TEXT NOT NULL,
 		resource TEXT NOT NULL DEFAULT '',
 		detail TEXT NOT NULL DEFAULT '',
 		ip TEXT NOT NULL DEFAULT '',
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS brands (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		domain TEXT UNIQUE,
+		name TEXT NOT NULL DEFAULT 'MIMO',
+		logo_url TEXT NOT NULL DEFAULT '',
+		primary_color TEXT NOT NULL DEFAULT '#7c3aed',
+		background_color TEXT NOT NULL DEFAULT '#09090b',
+		accent_color TEXT NOT NULL DEFAULT '#4f46e5',
+		email_from TEXT NOT NULL DEFAULT '',
+		email_footer TEXT NOT NULL DEFAULT '',
+		custom_css TEXT NOT NULL DEFAULT '',
+		custom_html TEXT NOT NULL DEFAULT '',
+		show_powered_by INTEGER NOT NULL DEFAULT 1,
+		max_file_size INTEGER NOT NULL DEFAULT 0,
+		default_expiry_hours INTEGER NOT NULL DEFAULT 24,
+		default_max_downloads INTEGER NOT NULL DEFAULT 100,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS file_requests (
+		id TEXT PRIMARY KEY,
+		user_id INTEGER,
+		title TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		max_file_size INTEGER NOT NULL DEFAULT 0,
+		max_files INTEGER NOT NULL DEFAULT 0,
+		allowed_types TEXT NOT NULL DEFAULT '',
+		custom_fields TEXT NOT NULL DEFAULT '[]',
+		require_fields TEXT NOT NULL DEFAULT '[]',
+		status TEXT NOT NULL DEFAULT 'active',
+		file_count INTEGER NOT NULL DEFAULT 0,
+		total_size INTEGER NOT NULL DEFAULT 0,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS web_folders (
+		id TEXT PRIMARY KEY,
+		token TEXT UNIQUE NOT NULL,
+		user_id INTEGER,
+		name TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		mode TEXT NOT NULL DEFAULT 'both',
+		password_hash TEXT NOT NULL DEFAULT '',
+		file_count INTEGER NOT NULL DEFAULT 0,
+		total_size INTEGER NOT NULL DEFAULT 0,
+		max_file_size INTEGER NOT NULL DEFAULT 0,
+		max_files INTEGER NOT NULL DEFAULT 0,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS web_folder_files (
+		id TEXT PRIMARY KEY,
+		folder_id TEXT NOT NULL REFERENCES web_folders(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		size INTEGER NOT NULL,
+		mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+		storage_path TEXT NOT NULL DEFAULT '',
+		uploader_name TEXT NOT NULL DEFAULT '',
+		uploader_email TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS settings (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		site_name TEXT NOT NULL DEFAULT 'MIMO',
+		site_description TEXT NOT NULL DEFAULT 'Self-hosted file transfer',
+		logo_url TEXT NOT NULL DEFAULT '',
+		favicon_url TEXT NOT NULL DEFAULT '',
+		primary_color TEXT NOT NULL DEFAULT '#7c3aed',
+		accent_color TEXT NOT NULL DEFAULT '#4f46e5',
+		email_from TEXT NOT NULL DEFAULT '',
+		email_footer TEXT NOT NULL DEFAULT '',
+		allow_register INTEGER NOT NULL DEFAULT 1,
+		allow_anonymous INTEGER NOT NULL DEFAULT 1,
+		max_upload_size INTEGER NOT NULL DEFAULT 0,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_transfers_user ON transfers(user_id);
@@ -122,6 +203,8 @@ func (db *DB) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_chunks_file ON chunks(file_id);
 	CREATE INDEX IF NOT EXISTS idx_clipboard_expires ON clipboard(expires_at);
 	CREATE INDEX IF NOT EXISTS idx_p2p_code ON p2p_sessions(code);
+	CREATE INDEX IF NOT EXISTS idx_folder_token ON web_folders(token);
+	CREATE INDEX IF NOT EXISTS idx_request_status ON file_requests(status);
 	`
 	_, err := db.conn.Exec(schema)
 	return err

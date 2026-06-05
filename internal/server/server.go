@@ -14,6 +14,7 @@ import (
 
 	"github.com/vesper/mimo/internal/config"
 	"github.com/vesper/mimo/internal/db"
+	"github.com/vesper/mimo/internal/notify"
 	"github.com/vesper/mimo/internal/storage"
 	"github.com/vesper/mimo/internal/user"
 )
@@ -23,16 +24,18 @@ type Server struct {
 	db        *db.DB
 	store     storage.Store
 	userSvc   *user.Service
+	notify    *notify.Service
 	hub       *WSHub
 	staticFS  fs.FS
 }
 
-func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user.Service, staticFS fs.FS) *Server {
+func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user.Service, notif *notify.Service, staticFS fs.FS) *Server {
 	s := &Server{
 		cfg:      cfg,
 		db:       database,
 		store:    store,
 		userSvc:  userSvc,
+		notify:   notif,
 		hub:      NewWSHub(),
 		staticFS: staticFS,
 	}
@@ -59,6 +62,9 @@ func (s *Server) Router() http.Handler {
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
+		// Brand (public, loaded for UI customization)
+		r.Get("/brand", s.handleGetBrand)
+
 		r.Post("/auth/register", s.handleRegister)
 		r.Post("/auth/login", s.handleLogin)
 		r.Post("/auth/refresh", s.handleRefresh)
@@ -67,6 +73,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/t/{id}/files", s.handleGetTransferFiles)
 		r.Get("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Post("/t/{id}/download/{fileID}", s.handleDownloadFile)
+		r.Post("/t/{id}/email", s.handleEmailTransfer)
 		r.Get("/clipboard/{id}", s.handleGetClipboard)
 		r.Post("/clipboard", s.handleCreateClipboard)
 
@@ -78,6 +85,20 @@ func (s *Server) Router() http.Handler {
 		r.Get("/p2p/{code}", s.handleGetP2P)
 		r.Get("/p2p/ws/{code}", s.handleP2PWebSocket)
 
+		// File requests (public view, auth to create)
+		r.Get("/r/{id}", s.handleGetFileRequest)
+		r.Post("/r/{id}/submit", s.handleUploadToWebFolder) // Reuse upload pattern
+
+		// Web folders (public access via token)
+		r.Get("/f/{token}", s.handleGetWebFolder)
+		r.Get("/f/{token}/files", s.handleGetWebFolderFiles)
+		r.Post("/f/{token}/upload", s.handleUploadToWebFolder)
+		r.Get("/f/{token}/download/{fileID}", s.handleDownloadFromWebFolder)
+		r.Post("/f/{token}/download/{fileID}", s.handleDownloadFromWebFolder)
+
+		// Settings (public read, auth to write)
+		r.Get("/settings", s.handleGetSettings)
+
 		r.Get("/ws", s.handleWebSocket)
 
 		r.Group(func(r chi.Router) {
@@ -87,6 +108,18 @@ func (s *Server) Router() http.Handler {
 			r.Delete("/transfers/{id}", s.handleDeleteTransfer)
 
 			r.Get("/me", s.handleGetProfile)
+
+			// File requests (auth required)
+			r.Post("/file-requests", s.handleCreateFileRequest)
+			r.Get("/file-requests", s.handleListFileRequests)
+
+			// Web folders (auth required to create)
+			r.Post("/folders", s.handleCreateWebFolder)
+			r.Get("/folders", s.handleListWebFolders)
+
+			// Settings (admin)
+			r.Post("/settings", s.handleUpdateSettings)
+			r.Post("/brand", s.handleUpdateBrand)
 
 			r.Group(func(r chi.Router) {
 				r.Use(s.adminMiddleware)

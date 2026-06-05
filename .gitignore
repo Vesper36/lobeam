@@ -40,3 +40,4 @@ Thumbs.db
 .env.production
 mimo
 go.sum
+mimo-cli
