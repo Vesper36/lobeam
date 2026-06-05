@@ -1,0 +1,20 @@
+{
+  "Name": "LoBeam",
+  "DestinationType": "ImageUploader, TextUploader, FileUploader",
+  "RequestURL": "https://files.example.com/api/upload/init",
+  "FileFormName": "file",
+  "Arguments": {
+    "name": "$filename$",
+    "file_count": 1,
+    "encrypted": false,
+    "expiry_hours": 168,
+    "max_downloads": 100
+  },
+  "Headers": {
+    "Authorization": "Bearer $secret$"
+  },
+  "URL": "https://files.example.com/d/{json:transfer_id}",
+  "ThumbnailURL": "",
+  "DeletionURL": "",
+  "ErrorMessage": "{json:error}"
+}
