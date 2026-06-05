@@ -7,8 +7,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/vesper/mimo/internal/db"
-	"github.com/vesper/mimo/internal/model"
+	"github.com/vesper/lobeam/internal/db"
+	"github.com/vesper/lobeam/internal/model"
 )
 
 var (

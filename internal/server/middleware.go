@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/vesper/mimo/internal/user"
+	"github.com/vesper/lobeam/internal/user"
 )
 
 type contextKey string

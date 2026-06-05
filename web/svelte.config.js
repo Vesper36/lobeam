@@ -6,8 +6,8 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      pages: '../cmd/mimo/static',
-      assets: '../cmd/mimo/static',
+      pages: '../cmd/lobeam/static',
+      assets: '../cmd/lobeam/static',
       fallback: 'index.html'
     })
   }

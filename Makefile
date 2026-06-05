@@ -8,11 +8,11 @@ build: server cli
 
 # Build server with embedded frontend
 server: frontend
-	go build $(LDFLAGS) -o dist/mimo ./cmd/mimo/
+	go build $(LDFLAGS) -o dist/lobeam ./cmd/lobeam/
 
 # Build CLI
 cli:
-	go build $(LDFLAGS) -o dist/mimo-cli ./cmd/mimo-cli/
+	go build $(LDFLAGS) -o dist/lobeam-cli ./cmd/lobeam-cli/
 
 # Build frontend
 frontend:
@@ -42,14 +42,14 @@ clean:
 
 # Run server locally
 run: server
-	./dist/mimo
+	./dist/lobeam
 
 # Docker
 docker-build:
-	docker build -t mimo:$(VERSION) -t mimo:latest .
+	docker build -t lobeam:$(VERSION) -t lobeam:latest .
 
 docker-run:
-	docker run --rm -p 8080:8080 -v $(PWD)/data:/data mimo:latest
+	docker run --rm -p 8080:8080 -v $(PWD)/data:/data lobeam:latest
 
 # Release binaries for all platforms
 release: clean
@@ -57,22 +57,22 @@ release: clean
 	cd web && npm install --silent && npm run build && cd ..
 
 	# Linux
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/mimo-linux-amd64 ./cmd/mimo/
-	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/mimo-linux-arm64 ./cmd/mimo/
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/mimo-cli-linux-amd64 ./cmd/mimo-cli/
-	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/mimo-cli-linux-arm64 ./cmd/mimo-cli/
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/lobeam-linux-amd64 ./cmd/lobeam/
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/lobeam-linux-arm64 ./cmd/lobeam/
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/lobeam-cli-linux-amd64 ./cmd/lobeam-cli/
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/lobeam-cli-linux-arm64 ./cmd/lobeam-cli/
 
 	# macOS
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/mimo-darwin-amd64 ./cmd/mimo/
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/mimo-darwin-arm64 ./cmd/mimo/
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/mimo-cli-darwin-amd64 ./cmd/mimo-cli/
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/mimo-cli-darwin-arm64 ./cmd/mimo-cli/
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/lobeam-darwin-amd64 ./cmd/lobeam/
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/lobeam-darwin-arm64 ./cmd/lobeam/
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o dist/lobeam-cli-darwin-amd64 ./cmd/lobeam-cli/
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o dist/lobeam-cli-darwin-arm64 ./cmd/lobeam-cli/
 
 	# Windows
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/mimo-windows-amd64.exe ./cmd/mimo/
-	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o dist/mimo-windows-arm64.exe ./cmd/mimo/
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/mimo-cli-windows-amd64.exe ./cmd/mimo-cli/
-	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o dist/mimo-cli-windows-arm64.exe ./cmd/mimo-cli/
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/lobeam-windows-amd64.exe ./cmd/lobeam/
+	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o dist/lobeam-windows-arm64.exe ./cmd/lobeam/
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o dist/lobeam-cli-windows-amd64.exe ./cmd/lobeam-cli/
+	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o dist/lobeam-cli-windows-arm64.exe ./cmd/lobeam-cli/
 
 	@echo "Release binaries built in dist/"
 	@ls -la dist/

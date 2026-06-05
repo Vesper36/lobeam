@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vesper/mimo/internal/model"
+	"github.com/vesper/lobeam/internal/model"
 )
 
 // ---- Brand ----
@@ -39,10 +39,10 @@ func (db *DB) GetDefaultBrand() (*model.Brand, error) {
 			// Create default brand
 			_, err = db.conn.Exec(`INSERT INTO settings DEFAULT VALUES`)
 			if err != nil {
-				_, _ = db.conn.Exec(`INSERT INTO brands (domain, name) VALUES (NULL, 'MIMO')`)
+				_, _ = db.conn.Exec(`INSERT INTO brands (domain, name) VALUES (NULL, 'LoBeam')`)
 			}
 			return &model.Brand{
-				Name:               "MIMO",
+				Name:               "LoBeam",
 				PrimaryColor:       "#7c3aed",
 				BackgroundColor:    "#09090b",
 				AccentColor:        "#4f46e5",

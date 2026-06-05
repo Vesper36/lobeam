@@ -23,7 +23,24 @@
       "Bash(npm run *)",
       "Bash(MIMO_DATA_DIR=./test-data MIMO_PORT=18080 ./mimo)",
       "Bash(kill %1)",
-      "Bash(make release *)"
+      "Bash(make release *)",
+      "Bash(gh search *)",
+      "Bash(gh api *)",
+      "Bash(sed -i '' 's|mimo/mimo|lobeam/lobeam|g; s|mimo:latest|lobeam:latest|g; s|mimo/mimo|lobeam/lobeam|g; s|Vesper36/mimo|Vesper36/lobeam|g; s|/mimo|/lobeam|g' README.md Makefile Dockerfile docker-compose.yml .github/workflows/release.yml .github/workflows/ci.yml .github/HOMEBREW_README.md web/src/app.html)",
+      "Bash(sed -i '' 's/MIMO - Modern Intelligent Managed Operations/LoBeam - Large Object Beam/g' internal/server/server.go)",
+      "Bash(sed -i '' \"s/\\\\\"MIMO\\\\\"/\\\\\"LoBeam\\\\\"/g\" internal/db/extended.go)",
+      "Bash(sed -i '' 's/MIMO - File Transfer/LoBeam - File Transfer/g' web/src/app.html)",
+      "Bash(sed -i '' 's/>M</>L</g' web/src/app.html)",
+      "Bash(sed -i '' 's/MIMO_DATA_DIR/LOBEAM_DATA_DIR/g; s/MIMO_DB_PATH/LOBEAM_DB_PATH/g; s/MIMO_HOST/LOBEAM_HOST/g; s/MIMO_PORT/LOBEAM_PORT/g' Dockerfile docker-compose.yml .github/workflows/release.yml .github/workflows/ci.yml Makefile README.md)",
+      "Bash(sed -i '' 's/mimo\\\\.db/lobeam.db/g' Dockerfile internal/config/config.go)",
+      "Bash(sed -i '' 's|dataDir+\"/mimo.db\"|dataDir+\"/lobeam.db\"|g' internal/config/config.go)",
+      "Bash(sed -i '' 's/# MIMO/# LoBeam/g; s/## Why MIMO?/## Why LoBeam?/g; s/\\\\*\\\\*MIMO\\\\*\\\\*/\\\\*\\\\*LoBeam\\\\*\\\\*/g' README.md)",
+      "Bash(sed -i '' 's/--name mimo/--name lobeam/g; s/-v mimo-data:/-v lobeam-data:/g' README.md)",
+      "Bash(sed -i '' 's/Login to MIMO server/Login to LoBeam server/g; s/Upload files to MIMO/Upload files to LoBeam server/g; s/mimo\\\\.example\\\\.com/lobeam\\\\.example\\\\.com/g' cmd/lobeam-cli/main.go)",
+      "Bash(sed -i '' \"s|../cmd/mimo/static|../cmd/lobeam/static|g\" web/svelte.config.js)",
+      "Bash(sed -i '' 's|docker build -t mimo:|docker build -t lobeam:|g; s|## MIMO |## LoBeam |g; s|-o mimo$|-o lobeam|g; s|chmod +x mimo|chmod +x lobeam|g; s|brew install mimo|brew install lobeam|g; s|mimo-data|lobeam-data|g' .github/workflows/release.yml)",
+      "Bash(sed -i '' 's|./mimo|./lobeam|g; s|LOBEAM_PID|LOBEAM_PID|g' .github/workflows/ci.yml)",
+      "Bash(sed -i '' 's|<span>MIMO - Self-hosted file transfer</span>|<span>LoBeam - Self-hosted file transfer</span>|g; s|github.com/vesper/mimo|github.com/Vesper36/lobeam|g' web/src/routes/+layout.svelte)"
     ]
   }
 }

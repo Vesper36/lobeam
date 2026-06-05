@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/vesper/mimo/internal/model"
+	"github.com/vesper/lobeam/internal/model"
 )
 
 // ---- Brand (public) ----
@@ -25,7 +25,7 @@ func (s *Server) handleGetBrand(w http.ResponseWriter, r *http.Request) {
 	}
 	if brand == nil {
 		brand = &model.Brand{
-			Name:               "MIMO",
+			Name:               "LoBeam",
 			PrimaryColor:       "#7c3aed",
 			BackgroundColor:    "#09090b",
 			AccentColor:        "#4f46e5",

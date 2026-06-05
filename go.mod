@@ -1,4 +1,4 @@
-module github.com/vesper/mimo
+module github.com/vesper/lobeam
 
 go 1.25.0
 

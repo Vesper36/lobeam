@@ -1,18 +1,18 @@
-homebrew-mimo
+homebrew-lobeam
 ============
 
-Homebrew tap for [MIMO](https://github.com/Vesper36/mimo).
+Homebrew tap for [LoBeam](https://github.com/Vesper36/lobeam).
 
 ## Install
 
 ```bash
-brew tap vesper/mimo
-brew install mimo
+brew tap vesper/lobeam
+brew install lobeam
 ```
 
 ## Update
 
 ```bash
 brew update
-brew upgrade mimo
+brew upgrade lobeam
 ```

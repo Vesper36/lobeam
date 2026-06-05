@@ -13,19 +13,19 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/internal/server/static ./internal/server/static
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mimo ./cmd/mimo
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /lobeam ./cmd/lobeam
 
 # Runtime
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates sqlite
-COPY --from=backend /mimo /usr/local/bin/mimo
+COPY --from=backend /lobeam /usr/local/bin/lobeam
 
 VOLUME /data
-ENV MIMO_DATA_DIR=/data
-ENV MIMO_DB_PATH=/data/mimo.db
-ENV MIMO_HOST=0.0.0.0
-ENV MIMO_PORT=8080
+ENV LOBEAM_DATA_DIR=/data
+ENV LOBEAM_DB_PATH=/data/lobeam.db
+ENV LOBEAM_HOST=0.0.0.0
+ENV LOBEAM_PORT=8080
 
 EXPOSE 8080
 
-ENTRYPOINT ["mimo"]
+ENTRYPOINT ["lobeam"]

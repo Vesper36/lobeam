@@ -22,7 +22,7 @@
           <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-violet-500/20 group-hover:shadow-violet-500/40 transition-shadow">
             M
           </div>
-          <span class="text-xl font-bold tracking-tight">MIMO</span>
+          <span class="text-xl font-bold tracking-tight">LoBeam</span>
         </a>
 
         <!-- Desktop nav -->
@@ -82,11 +82,11 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
         <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center font-bold text-xs">M</div>
-          <span>MIMO - Self-hosted file transfer</span>
+          <div class="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center font-bold text-xs">L</div>
+          <span>LoBeam - Self-hosted file transfer</span>
         </div>
         <div class="flex items-center gap-4">
-          <a href="https://github.com/vesper/mimo" class="hover:text-gray-300 transition-colors">GitHub</a>
+          <a href="https://github.com/Vesper36/lobeam" class="hover:text-gray-300 transition-colors">GitHub</a>
           <span>v1.0.0</span>
         </div>
       </div>

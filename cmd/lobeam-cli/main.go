@@ -22,9 +22,9 @@ const (
 )
 
 var (
-	server   = flag.String("server", os.Getenv("MIMO_SERVER"), "MIMO server URL")
-	username = flag.String("user", os.Getenv("MIMO_USER"), "Username")
-	password = flag.String("pass", os.Getenv("MIMO_PASS"), "Password")
+	server   = flag.String("server", os.Getenv("LOBEAM_SERVER"), "LoBeam server URL")
+	username = flag.String("user", os.Getenv("LOBEAM_USER"), "Username")
+	password = flag.String("pass", os.Getenv("LOBEAM_PASS"), "Password")
 )
 
 type authResp struct {
@@ -65,46 +65,46 @@ func main() {
 	case "login":
 		loginCmd(os.Args[2:])
 	case "version", "-v", "--version":
-		fmt.Println("mimo-cli 1.0.0")
+		fmt.Println("lobeam-cli 1.0.0")
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Println(`mimo - Command-line file transfer client
+	fmt.Println(`lobeam-cli - Command-line file transfer client
 
 Usage:
-  mimo <command> [options]
+  lobeam-cli <command> [options]
 
 Commands:
-  login                  Login to MIMO server
-  upload <file>...       Upload files to MIMO
+  login                  Login to LoBeam server
+  upload <file>...       Upload files to LoBeam server
   version                Show version
 
 Options:
-  -server URL            MIMO server URL (default: $MIMO_SERVER or http://localhost:8080)
+  -server URL            LoBeam server URL (default: $LOBEAM_SERVER or http://localhost:8080)
   -user NAME             Username
   -pass PASSWORD         Password
 
 Environment:
-  MIMO_SERVER            Default server URL
-  MIMO_USER              Default username
-  MIMO_PASS              Default password
-  MIMO_TOKEN             Access token (set after login)
+  LOBEAM_SERVER            Default server URL
+  LOBEAM_USER              Default username
+  LOBEAM_PASS              Default password
+  LOBEAM_TOKEN             Access token (set after login)
 
 Examples:
-  mimo login -server https://mimo.example.com -user alice -pass secret
-  mimo upload ./file.zip
-  mimo upload -encrypted ./secret.pdf
-  mimo upload -expiry 168 -downloads 5 ./docs/`)
+  lobeam-cli login -server https://lobeam.example.com -user alice -pass secret
+  lobeam-cli upload ./file.zip
+  lobeam-cli upload -encrypted ./secret.pdf
+  lobeam-cli upload -expiry 168 -downloads 5 ./docs/`)
 }
 
 func loginCmd(args []string) {
 	fs := flag.NewFlagSet("login", flag.ExitOnError)
-	fs.StringVar(server, "server", getServer(), "MIMO server URL")
-	fs.StringVar(username, "user", os.Getenv("MIMO_USER"), "Username")
-	fs.StringVar(password, "pass", os.Getenv("MIMO_PASS"), "Password")
+	fs.StringVar(server, "server", getServer(), "LoBeam server URL")
+	fs.StringVar(username, "user", os.Getenv("LOBEAM_USER"), "Username")
+	fs.StringVar(password, "pass", os.Getenv("LOBEAM_PASS"), "Password")
 	fs.Parse(args)
 
 	if *username == "" || *password == "" {
@@ -118,11 +118,11 @@ func loginCmd(args []string) {
 		os.Exit(1)
 	}
 
-	// Save token to ~/.mimo-token
+	// Save token to ~/.lobeam-token
 	home, _ := os.UserHomeDir()
-	tokenPath := filepath.Join(home, ".mimo-token")
+	tokenPath := filepath.Join(home, ".lobeam-token")
 	os.WriteFile(tokenPath, []byte(resp.AccessToken), 0600)
-	os.Setenv("MIMO_TOKEN", resp.AccessToken)
+	os.Setenv("LOBEAM_TOKEN", resp.AccessToken)
 
 	fmt.Printf("Logged in as %s (role: %s)\n", resp.User.Username, resp.User.Role)
 	fmt.Printf("Token saved to %s\n", tokenPath)
@@ -130,7 +130,7 @@ func loginCmd(args []string) {
 
 func uploadCmd(args []string) {
 	fs := flag.NewFlagSet("upload", flag.ExitOnError)
-	fs.StringVar(server, "server", getServer(), "MIMO server URL")
+	fs.StringVar(server, "server", getServer(), "LoBeam server URL")
 	encrypted := fs.Bool("encrypted", true, "Encrypt files")
 	password := fs.String("password", "", "Password for extra protection")
 	expiryHours := fs.Int("expiry", 24, "Hours until expiration")
@@ -144,10 +144,10 @@ func uploadCmd(args []string) {
 		os.Exit(1)
 	}
 
-	token := os.Getenv("MIMO_TOKEN")
+	token := os.Getenv("LOBEAM_TOKEN")
 	if token == "" {
 		home, _ := os.UserHomeDir()
-		if data, err := os.ReadFile(filepath.Join(home, ".mimo-token")); err == nil {
+		if data, err := os.ReadFile(filepath.Join(home, ".lobeam-token")); err == nil {
 			token = string(data)
 		}
 	}
@@ -389,12 +389,12 @@ func formatBytes(b int64) string {
 func init() {
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, strings.TrimSpace(`
-mimo - Command-line file transfer
+lobeam-cli - Command-line file transfer
 
 Usage:
-  mimo <command> [options]
+  lobeam-cli <command> [options]
 
-Run 'mimo' for help.`))
+Run 'lobeam-cli' for help.`))
 	}
 	time.Sleep(0) // placeholder
 }

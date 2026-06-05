@@ -33,19 +33,19 @@ jobs:
           npm run build
 
       - name: Build server
-        run: go build -o mimo ./cmd/mimo/
+        run: go build -o lobeam ./cmd/lobeam/
 
       - name: Run tests
         run: go test -race -timeout 60s ./...
 
       - name: Test CLI
-        run: go build -o mimo-cli ./cmd/mimo-cli/
+        run: go build -o lobeam-cli ./cmd/lobeam-cli/
 
       - name: Run server smoke test
         run: |
-          ./mimo &
-          MIMO_PID=$!
+          ./lobeam &
+          LOBEAM_PID=$!
           sleep 3
           curl -sf http://localhost:8080/health
           curl -sf http://localhost:8080/api/brand
-          kill $MIMO_PID
+          kill $LOBEAM_PID

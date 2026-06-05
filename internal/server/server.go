@@ -12,11 +12,11 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/vesper/mimo/internal/config"
-	"github.com/vesper/mimo/internal/db"
-	"github.com/vesper/mimo/internal/notify"
-	"github.com/vesper/mimo/internal/storage"
-	"github.com/vesper/mimo/internal/user"
+	"github.com/vesper/lobeam/internal/config"
+	"github.com/vesper/lobeam/internal/db"
+	"github.com/vesper/lobeam/internal/notify"
+	"github.com/vesper/lobeam/internal/storage"
+	"github.com/vesper/lobeam/internal/user"
 )
 
 type Server struct {
@@ -228,7 +228,7 @@ func (s *Server) Start() error {
 |       | |  |____ |  ` + "`" + `----.|  ` + "`" + `----.
 |___|___| |_______||_______||_______|
 
-  MIMO - Modern Intelligent Managed Operations
+  LoBeam - Large Object Beam
   Server starting on %s
   Public URL: %s
 `, addr, s.cfg.PublicURL)

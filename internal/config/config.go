@@ -49,46 +49,46 @@ type Config struct {
 }
 
 func Load() *Config {
-	dataDir := envStr("MIMO_DATA_DIR", "./data")
-	dbPath := envStr("MIMO_DB_PATH", dataDir+"/mimo.db")
+	dataDir := envStr("LOBEAM_DATA_DIR", "./data")
+	dbPath := envStr("LOBEAM_DB_PATH", dataDir+"/lobeam.db")
 
 	_ = os.MkdirAll(dataDir, 0755)
 
 	return &Config{
-		Host:         envStr("MIMO_HOST", "0.0.0.0"),
-		Port:         envInt("MIMO_PORT", 8080),
-		PublicURL:    envStr("MIMO_PUBLIC_URL", "http://localhost:8080"),
+		Host:         envStr("LOBEAM_HOST", "0.0.0.0"),
+		Port:         envInt("LOBEAM_PORT", 8080),
+		PublicURL:    envStr("LOBEAM_PUBLIC_URL", "http://localhost:8080"),
 		DataDir:      dataDir,
 
 		DBPath: dbPath,
 
-		StorageType: envStr("MIMO_STORAGE_TYPE", "local"),
-		MaxFileSize: int64(envInt("MIMO_MAX_FILE_SIZE", 0)),
+		StorageType: envStr("LOBEAM_STORAGE_TYPE", "local"),
+		MaxFileSize: int64(envInt("LOBEAM_MAX_FILE_SIZE", 0)),
 
-		JWTSecret:     envStr("MIMO_JWT_SECRET", "change-me-in-production"),
-		JWTExpiry:     time.Duration(envInt("MIMO_JWT_EXPIRY_HOURS", 24)) * time.Hour,
-		RefreshExpiry: time.Duration(envInt("MIMO_REFRESH_EXPIRY_DAYS", 30)) * 24 * time.Hour,
+		JWTSecret:     envStr("LOBEAM_JWT_SECRET", "change-me-in-production"),
+		JWTExpiry:     time.Duration(envInt("LOBEAM_JWT_EXPIRY_HOURS", 24)) * time.Hour,
+		RefreshExpiry: time.Duration(envInt("LOBEAM_REFRESH_EXPIRY_DAYS", 30)) * 24 * time.Hour,
 
-		DefaultEncryption: envBool("MIMO_DEFAULT_ENCRYPTION", true),
+		DefaultEncryption: envBool("LOBEAM_DEFAULT_ENCRYPTION", true),
 
-		SMTPHost:     envStr("MIMO_SMTP_HOST", ""),
-		SMTPPort:     envInt("MIMO_SMTP_PORT", 587),
-		SMTPUsername: envStr("MIMO_SMTP_USERNAME", ""),
-		SMTPPassword: envStr("MIMO_SMTP_PASSWORD", ""),
-		SMTPFrom:     envStr("MIMO_SMTP_FROM", ""),
+		SMTPHost:     envStr("LOBEAM_SMTP_HOST", ""),
+		SMTPPort:     envInt("LOBEAM_SMTP_PORT", 587),
+		SMTPUsername: envStr("LOBEAM_SMTP_USERNAME", ""),
+		SMTPPassword: envStr("LOBEAM_SMTP_PASSWORD", ""),
+		SMTPFrom:     envStr("LOBEAM_SMTP_FROM", ""),
 
 		STUNServers: []string{
 			"stun:stun.l.google.com:19302",
 			"stun:stun1.l.google.com:19302",
 		},
-		TURNServer: envStr("MIMO_TURN_SERVER", ""),
-		TURNUser:   envStr("MIMO_TURN_USER", ""),
-		TURNPass:   envStr("MIMO_TURN_PASS", ""),
+		TURNServer: envStr("LOBEAM_TURN_SERVER", ""),
+		TURNUser:   envStr("LOBEAM_TURN_USER", ""),
+		TURNPass:   envStr("LOBEAM_TURN_PASS", ""),
 
-		MaxChunkSize:   int64(envInt("MIMO_MAX_CHUNK_MB", 5)) * 1024 * 1024,
-		TransferExpiry: time.Duration(envInt("MIMO_TRANSFER_EXPIRY_HOURS", 24)) * time.Hour,
-		MaxDownloads:   envInt("MIMO_MAX_DOWNLOADS", 100),
-		AllowAnonymous: envBool("MIMO_ALLOW_ANONYMOUS", true),
+		MaxChunkSize:   int64(envInt("LOBEAM_MAX_CHUNK_MB", 5)) * 1024 * 1024,
+		TransferExpiry: time.Duration(envInt("LOBEAM_TRANSFER_EXPIRY_HOURS", 24)) * time.Hour,
+		MaxDownloads:   envInt("LOBEAM_MAX_DOWNLOADS", 100),
+		AllowAnonymous: envBool("LOBEAM_ALLOW_ANONYMOUS", true),
 	}
 }
 

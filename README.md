@@ -1,4 +1,4 @@
-# MIMO
+# LoBeam
 
 **Modern Intelligent Managed Operations** -- Self-hosted file transfer platform.
 
@@ -8,9 +8,9 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 
 ---
 
-## Why MIMO?
+## Why LoBeam?
 
-| Feature | WeTransfer | Send | LocalSend | croc | **MIMO** |
+| Feature | WeTransfer | Send | LocalSend | croc | **LoBeam** |
 |---------|:----------:|:----:|:---------:|:----:|:--------:|
 | Self-hosted | - | Y | Y | Y | **Y** |
 | Web UI | Y | Y | Y | - | **Y** |
@@ -72,7 +72,7 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 ### Embedded Upload Form
 - **一行 HTML 集成** -- Drop the upload form into any website
 - **Custom Form Fields** -- Add your own fields
-- **Auto Brand Match** -- Inherits your MIMO brand settings
+- **Auto Brand Match** -- Inherits your LoBeam brand settings
 
 ### Extra Tools
 - **Network Clipboard** -- Share text, code, notes via simple links
@@ -92,45 +92,45 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 
 ```bash
 docker run -d \
-  --name mimo \
+  --name lobeam \
   -p 8080:8080 \
-  -v mimo-data:/data \
-  -e MIMO_PUBLIC_URL=https://files.example.com \
-  -e MIMO_JWT_SECRET=$(openssl rand -hex 32) \
-  mimo/mimo:latest
+  -v lobeam-data:/data \
+  -e LOBEAM_PUBLIC_URL=https://files.example.com \
+  -e LOBEAM_JWT_SECRET=$(openssl rand -hex 32) \
+  lobeam/lobeam:latest
 ```
 
 ### Docker Compose
 
 ```yaml
 services:
-  mimo:
-    image: mimo/mimo:latest
+  lobeam:
+    image: lobeam/lobeam:latest
     ports:
       - "8080:8080"
     volumes:
-      - mimo-data:/data
+      - lobeam-data:/data
     environment:
-      - MIMO_PUBLIC_URL=https://files.example.com
-      - MIMO_JWT_SECRET=your-secret-key
+      - LOBEAM_PUBLIC_URL=https://files.example.com
+      - LOBEAM_JWT_SECRET=your-secret-key
 ```
 
 ### Single Binary
 
 ```bash
 # Linux/macOS
-curl -L https://github.com/Vesper36/mimo/releases/latest/download/mimo-linux-amd64 -o mimo
-chmod +x mimo
-./mimo
+curl -L https://github.com/Vesper36/lobeam/releases/latest/download/lobeam-linux-amd64 -o lobeam
+chmod +x lobeam
+./lobeam
 ```
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/Vesper36/mimo.git
-cd mimo
+git clone https://github.com/Vesper36/lobeam.git
+cd lobeam
 make build
-./dist/mimo
+./dist/lobeam
 ```
 
 Visit `http://localhost:8080` -- the first registered user becomes admin.
@@ -139,36 +139,36 @@ Visit `http://localhost:8080` -- the first registered user becomes admin.
 
 ```bash
 # Install CLI
-curl -L https://github.com/Vesper36/mimo/releases/latest/download/mimo-cli-linux-amd64 -o mimo-cli
-chmod +x mimo-cli
+curl -L https://github.com/Vesper36/lobeam/releases/latest/download/lobeam-cli-linux-amd64 -o lobeam-cli
+chmod +x lobeam-cli
 
 # Login
-./mimo-cli login -server https://mimo.example.com -user alice -pass secret
+./lobeam-cli login -server https://lobeam.example.com -user alice -pass secret
 
 # Upload
-./mimo-cli upload ./file.zip
-./mimo-cli upload -encrypted -expiry 168 -downloads 5 ./secret.pdf
-./mimo-cli upload -note "Quarterly report" ./Q4-2026.pdf
+./lobeam-cli upload ./file.zip
+./lobeam-cli upload -encrypted -expiry 168 -downloads 5 ./secret.pdf
+./lobeam-cli upload -note "Quarterly report" ./Q4-2026.pdf
 ```
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MIMO_HOST` | `0.0.0.0` | Listen host |
-| `MIMO_PORT` | `8080` | Listen port |
-| `MIMO_PUBLIC_URL` | `http://localhost:8080` | Public-facing URL |
-| `MIMO_DATA_DIR` | `./data` | Data storage directory |
-| `MIMO_JWT_SECRET` | `change-me` | JWT signing secret |
-| `MIMO_MAX_FILE_SIZE` | `0` (unlimited) | Max file size in bytes |
-| `MIMO_TRANSFER_EXPIRY_HOURS` | `24` | Default transfer expiry |
-| `MIMO_MAX_DOWNLOADS` | `100` | Default max downloads |
-| `MIMO_ALLOW_ANONYMOUS` | `true` | Allow anonymous uploads |
-| `MIMO_SMTP_HOST` | - | SMTP server for notifications |
-| `MIMO_SMTP_PORT` | `587` | SMTP port |
-| `MIMO_SMTP_USERNAME` | - | SMTP username |
-| `MIMO_SMTP_PASSWORD` | - | SMTP password |
-| `MIMO_SMTP_FROM` | - | Sender email address |
+| `LOBEAM_HOST` | `0.0.0.0` | Listen host |
+| `LOBEAM_PORT` | `8080` | Listen port |
+| `LOBEAM_PUBLIC_URL` | `http://localhost:8080` | Public-facing URL |
+| `LOBEAM_DATA_DIR` | `./data` | Data storage directory |
+| `LOBEAM_JWT_SECRET` | `change-me` | JWT signing secret |
+| `LOBEAM_MAX_FILE_SIZE` | `0` (unlimited) | Max file size in bytes |
+| `LOBEAM_TRANSFER_EXPIRY_HOURS` | `24` | Default transfer expiry |
+| `LOBEAM_MAX_DOWNLOADS` | `100` | Default max downloads |
+| `LOBEAM_ALLOW_ANONYMOUS` | `true` | Allow anonymous uploads |
+| `LOBEAM_SMTP_HOST` | - | SMTP server for notifications |
+| `LOBEAM_SMTP_PORT` | `587` | SMTP port |
+| `LOBEAM_SMTP_USERNAME` | - | SMTP username |
+| `LOBEAM_SMTP_PASSWORD` | - | SMTP password |
+| `LOBEAM_SMTP_FROM` | - | Sender email address |
 
 ## API
 

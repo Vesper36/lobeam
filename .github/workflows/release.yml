@@ -42,15 +42,15 @@ jobs:
             for GOARCH in amd64 arm64; do
               EXT=""
               if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
-              echo "Building mimo-$GOOS-$GOARCH..."
-              CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o dist/mimo-$GOOS-$GOARCH$EXT ./cmd/mimo/
-              echo "Building mimo-cli-$GOOS-$GOARCH..."
-              CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o dist/mimo-cli-$GOOS-$GOARCH$EXT ./cmd/mimo-cli/
+              echo "Building lobeam-$GOOS-$GOARCH..."
+              CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o dist/lobeam-$GOOS-$GOARCH$EXT ./cmd/lobeam/
+              echo "Building lobeam-cli-$GOOS-$GOARCH..."
+              CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o dist/lobeam-cli-$GOOS-$GOARCH$EXT ./cmd/lobeam-cli/
             done
           done
 
       - name: Create Docker image
-        run: docker build -t mimo:${{ github.ref_name }} -t mimo:latest .
+        run: docker build -t lobeam:${{ github.ref_name }} -t lobeam:latest .
 
       - name: Generate checksums
         working-directory: dist
@@ -60,12 +60,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/mimo-*
+            dist/lobeam-*
             dist/checksums.txt
           draft: true
           generate_release_notes: true
           body: |
-            ## MIMO ${{ github.ref_name }}
+            ## LoBeam ${{ github.ref_name }}
 
             Self-hosted file transfer platform with E2E encryption, P2P direct transfer, and enterprise features.
 
@@ -73,20 +73,20 @@ jobs:
 
             **Docker (recommended):**
             ```bash
-            docker run -d -p 8080:8080 -v mimo-data:/data mimo/mimo:latest
+            docker run -d -p 8080:8080 -v lobeam-data:/data lobeam/lobeam:latest
             ```
 
             **Single binary:**
             ```bash
             # Linux/macOS
-            curl -L https://github.com/Vesper36/mimo/releases/download/${{ github.ref_name }}/mimo-linux-amd64 -o mimo
-            chmod +x mimo
-            ./mimo
+            curl -L https://github.com/Vesper36/lobeam/releases/download/${{ github.ref_name }}/lobeam-linux-amd64 -o lobeam
+            chmod +x lobeam
+            ./lobeam
             ```
 
             **Homebrew:**
             ```bash
-            brew install mimo
+            brew install lobeam
             ```
 
-            See [README](https://github.com/Vesper36/mimo) for full documentation.
+            See [README](https://github.com/Vesper36/lobeam) for full documentation.

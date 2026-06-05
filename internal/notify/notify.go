@@ -6,7 +6,7 @@ import (
 
 	"github.com/wneessen/go-mail"
 
-	"github.com/vesper/mimo/internal/config"
+	"github.com/vesper/lobeam/internal/config"
 )
 
 type Service struct {

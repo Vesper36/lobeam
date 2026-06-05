@@ -6,7 +6,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/vesper/mimo/internal/model"
+	"github.com/vesper/lobeam/internal/model"
 )
 
 type DB struct {
@@ -118,7 +118,7 @@ func (db *DB) migrate() error {
 	CREATE TABLE IF NOT EXISTS brands (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		domain TEXT UNIQUE,
-		name TEXT NOT NULL DEFAULT 'MIMO',
+		name TEXT NOT NULL DEFAULT 'LoBeam',
 		logo_url TEXT NOT NULL DEFAULT '',
 		primary_color TEXT NOT NULL DEFAULT '#7c3aed',
 		background_color TEXT NOT NULL DEFAULT '#09090b',
@@ -182,7 +182,7 @@ func (db *DB) migrate() error {
 
 	CREATE TABLE IF NOT EXISTS settings (
 		id INTEGER PRIMARY KEY CHECK (id = 1),
-		site_name TEXT NOT NULL DEFAULT 'MIMO',
+		site_name TEXT NOT NULL DEFAULT 'LoBeam',
 		site_description TEXT NOT NULL DEFAULT 'Self-hosted file transfer',
 		logo_url TEXT NOT NULL DEFAULT '',
 		favicon_url TEXT NOT NULL DEFAULT '',
