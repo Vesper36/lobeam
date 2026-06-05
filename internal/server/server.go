@@ -87,7 +87,7 @@ func (s *Server) Router() http.Handler {
 
 		// File requests (public view, auth to create)
 		r.Get("/r/{id}", s.handleGetFileRequest)
-		r.Post("/r/{id}/submit", s.handleUploadToWebFolder) // Reuse upload pattern
+		r.Post("/r/{id}/submit", s.handleSubmitToFileRequest)
 
 		// Web folders (public access via token)
 		r.Get("/f/{token}", s.handleGetWebFolder)

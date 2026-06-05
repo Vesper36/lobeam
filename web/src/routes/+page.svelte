@@ -1,6 +1,7 @@
 <script>
   import { api } from '$lib/utils/api.js';
   import { formatBytes, formatSpeed, formatDuration, copyToClipboard } from '$lib/utils/helpers.js';
+  import { generateQR } from '$lib/utils/qrcode.js';
 
   let files = $state([]);
   let uploading = $state(false);
@@ -16,6 +17,12 @@
   let expiryHours = $state(24);
   let note = $state('');
   let copied = $state(false);
+  let qrDataUrl = $state('');
+  let shareEarlyLink = $state('');
+  let senderEmail = $state('');
+  let receiverEmail = $state('');
+  let emailSent = $state(false);
+  let transferId = $state('');
 
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -45,11 +52,19 @@
     result = null;
     error = '';
     progress = 0;
+    shareEarlyLink = '';
+    transferId = '';
+    qrDataUrl = '';
+    emailSent = false;
   }
 
   async function upload() {
     if (files.length === 0) {
       error = 'Please select at least one file';
+      return;
+    }
+    if (receiverEmail && !receiverEmail.includes('@')) {
+      error = 'Invalid receiver email address';
       return;
     }
 
@@ -62,7 +77,7 @@
       let uploadedSize = 0;
       const startTime = Date.now();
 
-      // Init transfer
+      // Init transfer — returns share URL immediately for real-time sharing
       const initRes = await api.initUpload({
         name: files.length === 1 ? files[0].name : `${files.length} files`,
         file_count: files.length,
@@ -71,9 +86,15 @@
         max_downloads: maxDownloads,
         expiry_hours: expiryHours,
         note: note,
+        sender_email: senderEmail || undefined,
+        receiver_email: receiverEmail || undefined,
       });
 
-      const transferId = initRes.transfer_id;
+      transferId = initRes.transfer_id;
+      if (initRes.download_url) {
+        shareEarlyLink = initRes.download_url;
+        generateQR(initRes.download_url).then(url => qrDataUrl = url);
+      }
 
       // Upload each file
       for (const file of files) {
@@ -85,7 +106,6 @@
           const end = Math.min(start + CHUNK_SIZE, file.size);
           const chunk = file.slice(start, end);
 
-          // Calculate chunk hash
           const buffer = await chunk.arrayBuffer();
           const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
           const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -112,6 +132,18 @@
       result = completeRes;
       progress = 100;
 
+      // If email is set, send automatically after completion
+      if (receiverEmail && transferId) {
+        try {
+          await api.emailTransfer(transferId, {
+            email: receiverEmail,
+            subject: `Files shared via LoBeam: ${files.length > 1 ? `${files.length} files` : files[0].name}`,
+            message: note || 'Files have been shared with you.',
+          });
+          emailSent = true;
+        } catch { /* email failed but transfer succeeded */ }
+      }
+
     } catch (err) {
       error = err.message;
     } finally {
@@ -120,10 +152,17 @@
   }
 
   function copyLink() {
-    if (result?.download_url) {
-      copyToClipboard(result.download_url);
+    const url = result?.download_url || shareEarlyLink;
+    if (url) {
+      copyToClipboard(url);
       copied = true;
       setTimeout(() => copied = false, 2000);
+    }
+  }
+
+  function handleKeyDown(e) {
+    if (notesRef && e.key === ' ' && e.shiftKey) {
+      e.preventDefault();
     }
   }
 </script>
@@ -148,12 +187,25 @@
       <h2 class="text-2xl font-bold mb-2">Transfer ready</h2>
       <p class="text-gray-400 mb-6">Share this link with your recipient</p>
 
-      <div class="bg-gray-800 rounded-xl p-4 flex items-center gap-3 mb-6">
+      <div class="bg-gray-800 rounded-xl p-4 flex items-center gap-3 mb-4">
         <input type="text" value={result.download_url} readonly class="flex-1 bg-transparent text-sm text-gray-300 outline-none" />
         <button onclick={copyLink} class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-sm font-medium transition-colors whitespace-nowrap">
           {copied ? 'Copied!' : 'Copy link'}
         </button>
       </div>
+
+      {#if qrDataUrl}
+        <div class="mb-4">
+          <img src={qrDataUrl} alt="QR Code" class="inline-block w-32 h-32 rounded-xl bg-white p-2" />
+          <p class="text-xs text-gray-500 mt-1">Scan to download</p>
+        </div>
+      {/if}
+
+      {#if emailSent}
+        <div class="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-sm text-green-400">
+          Download link sent to {receiverEmail}
+        </div>
+      {/if}
 
       <button onclick={clearAll} class="text-sm text-gray-400 hover:text-white transition-colors">
         Send more files
@@ -202,7 +254,7 @@
                   <p class="text-sm font-medium truncate">{file.name}</p>
                   <p class="text-xs text-gray-500">{formatBytes(file.size)}</p>
                 </div>
-                <button onclick={() => removeFile(i)} class="p-1 rounded hover:bg-gray-700 transition-colors">
+                <button onclick={() => removeFile(i)} class="p-1 rounded hover:bg-gray-700 transition-colors" aria-label="Remove file">
                   <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
               </div>
@@ -215,6 +267,19 @@
             Add more files
             <input type="file" multiple class="hidden" onchange={handleFileInput} />
           </label>
+
+          <!-- Real-time sharing: show link while uploading -->
+          {#if shareEarlyLink && uploading}
+            <div class="mb-4 p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl">
+              <p class="text-sm font-medium text-violet-300 mb-2">Share now (before upload completes)</p>
+              <div class="flex items-center gap-2">
+                <input type="text" value={shareEarlyLink} readonly class="flex-1 bg-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-300 outline-none" />
+                <button onclick={copyLink} class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-xs font-medium transition-colors whitespace-nowrap">
+                  Copy
+                </button>
+              </div>
+            </div>
+          {/if}
 
           <!-- Options -->
           <div class="space-y-4 p-4 bg-gray-800/30 rounded-xl mb-6">
@@ -233,6 +298,21 @@
                 <input type="password" bind:value={password} placeholder="Leave empty for link-only encryption" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
               </div>
             {/if}
+
+            <!-- Email section -->
+            <div class="border-t border-gray-700/50 pt-4">
+              <p class="text-sm font-medium mb-3">Send via email</p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-400 mb-1">Your email</label>
+                  <input type="email" bind:value={senderEmail} placeholder="you@example.com" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-400 mb-1">Recipient email</label>
+                  <input type="email" bind:value={receiverEmail} placeholder="them@example.com" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+                </div>
+              </div>
+            </div>
 
             <div class="grid grid-cols-2 gap-4">
               <div>

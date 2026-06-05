@@ -164,9 +164,31 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 	os.MkdirAll(transferDir, 0755)
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"transfer_id": t.ID,
-		"expires_at":  t.ExpiresAt,
+		"transfer_id":  t.ID,
+		"expires_at":   t.ExpiresAt,
+		"download_url": fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, t.ID),
 	})
+
+	// Auto-send email notification if receiver_email is set
+	if req.ReceiverEmail != "" && s.notify != nil {
+		go func() {
+			downloadURL := fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, t.ID)
+			from := req.SenderEmail
+			if from == "" {
+				from = "noreply@lobeam.local"
+			}
+			subject := fmt.Sprintf("Files shared with you via LoBeam")
+			body := fmt.Sprintf("You have received %d file(s).\n\nDownload: %s\n\nNote: %s\n\nSent via LoBeam",
+				req.FileCount, downloadURL, req.Note)
+			_ = s.notify.SendRaw(req.ReceiverEmail, from, subject, body)
+		}()
+	}
+
+	// Audit log
+	userID := getUserID(r)
+	if userID > 0 {
+		s.db.CreateAuditLog(&userID, "upload", "transfer", fmt.Sprintf("Created transfer %s", t.ID), r.RemoteAddr)
+	}
 }
 
 func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
@@ -266,6 +288,11 @@ func (s *Server) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
 
 	t, _ := s.db.GetTransfer(transferID)
 
+	// Update storage used if owned by a user
+	if t != nil && t.UserID != nil {
+		s.db.UpdateUserStorageUsed(*t.UserID, t.TotalSize)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     "ready",
 		"transfer":   t,
@@ -336,13 +363,18 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set headers
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", f.Name))
+	// Set headers - use inline for previewable types
+	disposition := "attachment"
+	if isPreviewableMIME(f.MimeType) || isPreviewableExt(f.Name) {
+		disposition = "inline"
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, f.Name))
 	w.Header().Set("Content-Type", f.MimeType)
 	w.Header().Set("Content-Length", strconv.FormatInt(f.Size, 10))
 	w.Header().Set("X-File-Name", f.Name)
 	w.Header().Set("X-File-Size", strconv.FormatInt(f.Size, 10))
 	w.Header().Set("X-Encrypted", strconv.FormatBool(t.Encrypted))
+	w.Header().Set("Accept-Ranges", "bytes")
 
 	// Stream chunks
 	for _, chunk := range chunks {
@@ -355,6 +387,9 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.db.IncrementDownload(transferID)
+
+	// Audit log
+	s.db.CreateAuditLog(t.UserID, "download", "transfer", fmt.Sprintf("Downloaded file %s from transfer %s", f.Name, transferID), r.RemoteAddr)
 }
 
 // ---- Clipboard Handlers ----
@@ -528,4 +563,50 @@ func hashPassword(password string) string {
 func generateCode(length int) string {
 	u := strings.ReplaceAll(uuid.New().String(), "-", "")
 	return strings.ToUpper(u[:length])
+}
+
+// MIME types that browsers can preview inline
+var previewMIMETypes = map[string]bool{
+	"image/jpeg":      true,
+	"image/png":       true,
+	"image/gif":       true,
+	"image/webp":      true,
+	"image/svg+xml":   true,
+	"video/mp4":       true,
+	"video/webm":      true,
+	"video/ogg":       true,
+	"audio/mpeg":      true,
+	"audio/ogg":       true,
+	"audio/wav":       true,
+	"audio/webm":      true,
+	"application/pdf": true,
+	"text/plain":      true,
+	"text/html":       true,
+	"text/css":        true,
+	"text/javascript": true,
+	"text/csv":        true,
+	"application/json": true,
+	"application/xml": true,
+}
+
+var previewExtensions = map[string]bool{
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
+	".svg": true, ".mp4": true, ".webm": true, ".ogg": true, ".mp3": true,
+	".wav": true, ".pdf": true, ".txt": true, ".md": true, ".csv": true,
+	".json": true, ".xml": true, ".html": true, ".css": true, ".js": true,
+	".ico": true, ".bmp": true,
+}
+
+func isPreviewableMIME(mime string) bool {
+	return previewMIMETypes[mime]
+}
+
+func isPreviewableExt(name string) bool {
+	ext := strings.ToLower(name)
+	for i := len(ext) - 1; i >= 0; i-- {
+		if ext[i] == '.' {
+			return previewExtensions[ext[i:]]
+		}
+	}
+	return false
 }

@@ -126,6 +126,94 @@ func (s *Server) handleListFileRequests(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, requests)
 }
 
+// handleSubmitToFileRequest handles file uploads responding to a file request
+func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	fr, err := s.db.GetFileRequest(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "request not found")
+		return
+	}
+	if fr.Status != "active" || fr.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "request is no longer active")
+		return
+	}
+
+	fileName := r.Header.Get("X-File-Name")
+	fileSizeStr := r.Header.Get("X-File-Size")
+	mimeType := r.Header.Get("X-Mime-Type")
+	uploaderName := r.Header.Get("X-Uploader-Name")
+	uploaderEmail := r.Header.Get("X-Uploader-Email")
+
+	if fileName == "" {
+		writeError(w, http.StatusBadRequest, "missing file name")
+		return
+	}
+
+	fileSize, _ := parseInt64(fileSizeStr)
+	if fr.MaxFileSize > 0 && fileSize > fr.MaxFileSize {
+		writeError(w, http.StatusForbidden, "file exceeds size limit")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read upload")
+		return
+	}
+
+	// Store file as part of a transfer associated with this request
+	transferID := uuid.New().String()[:8]
+	fileID := uuid.New().String()[:12]
+	storagePath := fmt.Sprintf("requests/%s/%s_%s", id, fileID, fileName)
+
+	if err := s.store.Put(storagePath, bytesReader(body)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store file")
+		return
+	}
+
+	actualSize := int64(len(body))
+
+	// Create transfer record
+	t := &model.Transfer{
+		ID:           transferID,
+		UserID:       fr.UserID,
+		Name:         fileName,
+		Mode:         "link",
+		Status:       "ready",
+		FileCount:    1,
+		TotalSize:    actualSize,
+		MaxDownloads: 100,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+	}
+	if err := s.db.CreateTransfer(t); err == nil {
+		f := &model.File{
+			ID:         fileID,
+			TransferID: transferID,
+			Name:       fileName,
+			Size:       actualSize,
+			MimeType:   mimeType,
+			ChunkCount: 1,
+		}
+		s.db.CreateFile(f)
+	}
+
+	// Audit log
+	if fr.UserID != nil {
+		s.db.CreateAuditLog(fr.UserID, "upload", "file_request",
+			fmt.Sprintf("File %s submitted to request %s by %s", fileName, id, uploaderName), r.RemoteAddr)
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"file_id":        fileID,
+		"name":           fileName,
+		"size":           actualSize,
+		"request_id":     id,
+		"uploader_name":  uploaderName,
+		"uploader_email": uploaderEmail,
+	})
+}
+
 // ---- Web Folders ----
 
 func (s *Server) handleCreateWebFolder(w http.ResponseWriter, r *http.Request) {

@@ -77,6 +77,41 @@ Download before it expires: %s/d/%s
 	return s.send(toEmail, subject, body)
 }
 
+// SendRaw sends a raw email with custom from address. Used for auto-notifications.
+func (s *Service) SendRaw(to, from, subject, body string) error {
+	if !s.isEnabled() {
+		return nil
+	}
+
+	client, err := mail.NewClient(s.cfg.SMTPHost,
+		mail.WithPort(s.cfg.SMTPPort),
+		mail.WithTLSPortPolicy(mail.TLSMandatory),
+		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(s.cfg.SMTPUsername),
+		mail.WithPassword(s.cfg.SMTPPassword),
+		mail.WithTimeout(10*time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("create smtp client: %w", err)
+	}
+
+	msg := mail.NewMsg()
+	if err := msg.From(from); err != nil {
+		return fmt.Errorf("set from: %w", err)
+	}
+	if err := msg.AddTo(to); err != nil {
+		return fmt.Errorf("set to: %w", err)
+	}
+	msg.Subject(subject)
+	msg.SetBodyString(mail.TypeTextPlain, body)
+
+	if err := client.DialAndSend(msg); err != nil {
+		return fmt.Errorf("send email: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Service) send(to, subject, body string) error {
 	if !s.isEnabled() {
 		return nil

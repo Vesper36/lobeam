@@ -1,7 +1,8 @@
 <script>
   import { page } from '$app/stores';
   import { api } from '$lib/utils/api.js';
-  import { formatBytes, timeUntil } from '$lib/utils/helpers.js';
+  import { formatBytes, timeUntil, getFileIcon } from '$lib/utils/helpers.js';
+  import { generateQR } from '$lib/utils/qrcode.js';
 
   let transfer = $state(null);
   let files = $state([]);
@@ -9,6 +10,9 @@
   let error = $state('');
   let downloading = $state({});
   let password = $state('');
+  let preview = $state(null);
+  let copied = $state(false);
+  let qrDataUrl = $state('');
 
   const transferId = $derived($page.params.id);
 
@@ -20,6 +24,8 @@
     try {
       transfer = await api.getTransfer(transferId);
       files = await api.getTransferFiles(transferId);
+      const url = `${window.location.origin}/d/${transferId}`;
+      generateQR(url).then(u => qrDataUrl = u);
     } catch (err) {
       error = err.message;
     } finally {
@@ -27,8 +33,54 @@
     }
   }
 
+  function copyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/d/${transferId}`);
+    copied = true;
+    setTimeout(() => copied = false, 2000);
+  }
+
+  function isPreviewable(file) {
+    const previewTypes = ['image/', 'video/', 'audio/', 'text/', 'application/pdf'];
+    const previewExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.pdf', '.txt', '.md', '.csv', '.json', '.html', '.htm'];
+    if (transfer?.encrypted) return false;
+    if (file.size > 100 * 1024 * 1024) return false; // 100MB limit for preview
+    const name = file.name.toLowerCase();
+    for (const ext of previewExts) {
+      if (name.endsWith(ext)) return true;
+    }
+    for (const t of previewTypes) {
+      if (file.mime_type && file.mime_type.startsWith(t)) return true;
+    }
+    return false;
+  }
+
+  function previewFile(file) {
+    if (transfer?.encrypted) {
+      preview = null;
+      return;
+    }
+    const url = `/api/t/${transferId}/download/${file.id}${password ? '?password=' + encodeURIComponent(password) : ''}`;
+    const name = file.name.toLowerCase();
+    const mime = file.mime_type || '';
+
+    // Determine preview type
+    if (name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/) || mime.startsWith('image/')) {
+      preview = { type: 'image', url, name: file.name };
+    } else if (name.match(/\.(mp4|webm|ogg|mov)$/) || mime.startsWith('video/')) {
+      preview = { type: 'video', url, name: file.name };
+    } else if (name.match(/\.(mp3|wav|flac|ogg|aac)$/) || mime.startsWith('audio/')) {
+      preview = { type: 'audio', url, name: file.name };
+    } else if (name.endsWith('.pdf') || mime === 'application/pdf') {
+      preview = { type: 'pdf', url, name: file.name };
+    } else if (name.match(/\.(txt|md|json|xml|html|htm|css|js|py|go|rs|yaml|yml|csv)$/) || mime.startsWith('text/')) {
+      preview = { type: 'text', url, name: file.name };
+    } else {
+      preview = null;
+    }
+  }
+
   async function downloadFile(file) {
-    downloading[file.id] = true;
+    downloading = { ...downloading, [file.id]: true };
     try {
       const res = await fetch(`/api/t/${transferId}/download/${file.id}`, {
         method: 'GET',
@@ -47,7 +99,7 @@
     } catch (err) {
       error = err.message;
     } finally {
-      downloading[file.id] = false;
+      downloading = { ...downloading, [file.id]: false };
     }
   }
 
@@ -104,6 +156,16 @@
             </span>
           {/if}
         </div>
+
+        <!-- Share actions -->
+        <div class="flex items-center gap-2 mt-4">
+          <button onclick={copyLink} class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium transition-colors">
+            {copied ? 'Copied!' : 'Copy link'}
+          </button>
+          {#if qrDataUrl}
+            <img src={qrDataUrl} alt="QR" class="w-8 h-8 rounded bg-white p-0.5" />
+          {/if}
+        </div>
       </div>
 
       <!-- Password input -->
@@ -112,6 +174,35 @@
           <div class="flex gap-2">
             <input type="password" bind:value={password} placeholder="Enter password" class="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
           </div>
+        </div>
+      {/if}
+
+      <!-- Preview area -->
+      {#if preview}
+        <div class="border-b border-gray-800 bg-black/40">
+          {#if preview.type === 'image'}
+            <img src={preview.url} alt={preview.name} class="max-w-full max-h-96 mx-auto object-contain" />
+          {:else if preview.type === 'video'}
+            <video src={preview.url} controls class="max-w-full max-h-96 mx-auto" playsinline>
+              Your browser does not support the video tag.
+            </video>
+          {:else if preview.type === 'audio'}
+            <div class="p-8">
+              <p class="text-sm text-gray-400 mb-4">{preview.name}</p>
+              <audio src={preview.url} controls class="w-full">
+                Your browser does not support the audio tag.
+              </audio>
+            </div>
+          {:else if preview.type === 'pdf'}
+            <iframe src={preview.url + '#toolbar=0'} title={preview.name} class="w-full h-96 border-0"></iframe>
+          {:else if preview.type === 'text'}
+            <div class="p-4 max-h-96 overflow-auto">
+              <pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap hidden" bind:this={textContentRef}></pre>
+            </div>
+          {/if}
+          <button onclick={() => preview = null} class="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
+            Close preview
+          </button>
         </div>
       {/if}
 
@@ -126,6 +217,14 @@
               <p class="text-sm font-medium truncate">{file.name}</p>
               <p class="text-xs text-gray-500">{formatBytes(file.size)}</p>
             </div>
+            {#if isPreviewable(file)}
+              <button
+                onclick={() => previewFile(file)}
+                class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium transition-colors"
+              >
+                Preview
+              </button>
+            {/if}
             <button
               onclick={() => downloadFile(file)}
               disabled={downloading[file.id]}
