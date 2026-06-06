@@ -70,6 +70,7 @@ export const api = {
   listTransfers: () => request('/transfers'),
   deleteTransfer: (id) => request(`/transfers/${id}`, { method: 'DELETE' }),
   emailTransfer: (id, data) => request(`/t/${id}/email`, { method: 'POST', body: data }),
+  updateMagnet: (id, magnetURI) => request(`/t/${id}/magnet`, { method: 'PUT', body: { magnet_uri: magnetURI } }),
 
   // Clipboard
   createClipboard: (data) =>

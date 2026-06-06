@@ -544,6 +544,27 @@ func (s *Server) handleDeleteTransfer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// handleUpdateMagnet stores the WebTorrent magnet URI for a transfer
+func (s *Server) handleUpdateMagnet(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		MagnetURI string `json:"magnet_uri"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.MagnetURI == "" {
+		writeError(w, http.StatusBadRequest, "magnet_uri is required")
+		return
+	}
+	if err := s.db.UpdateMagnetURI(id, req.MagnetURI); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update magnet URI")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // ---- User Profile ----
 
 func (s *Server) handleGetProfile(w http.ResponseWriter, r *http.Request) {

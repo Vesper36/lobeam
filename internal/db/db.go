@@ -62,7 +62,8 @@ func (db *DB) migrate() error {
 		completed_at DATETIME,
 		note TEXT NOT NULL DEFAULT '',
 		sender_email TEXT NOT NULL DEFAULT '',
-		receiver_email TEXT NOT NULL DEFAULT ''
+		receiver_email TEXT NOT NULL DEFAULT '',
+		magnet_uri TEXT NOT NULL DEFAULT ''
 	);
 
 	CREATE TABLE IF NOT EXISTS files (
@@ -220,6 +221,7 @@ func (db *DB) migrate() error {
 		`ALTER TABLE users ADD COLUMN oidc_sub TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE users ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc ON users(oidc_provider, oidc_sub) WHERE oidc_provider != ''`,
+		`ALTER TABLE transfers ADD COLUMN magnet_uri TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, m := range migrations {
 		db.conn.Exec(m) // ignore "duplicate column" errors
@@ -248,9 +250,9 @@ func (db *DB) GetTransfer(id string) (*model.Transfer, error) {
 	var enc int
 	var completed sql.NullTime
 	err := db.conn.QueryRow(
-		`SELECT id, user_id, name, mode, status, file_count, total_size, encrypted, password_hash, max_downloads, download_count, expires_at, created_at, completed_at, note, sender_email, receiver_email
+		`SELECT id, user_id, name, mode, status, file_count, total_size, encrypted, password_hash, max_downloads, download_count, expires_at, created_at, completed_at, note, sender_email, receiver_email, magnet_uri
 		 FROM transfers WHERE id = ?`, id,
-	).Scan(&t.ID, &t.UserID, &t.Name, &t.Mode, &t.Status, &t.FileCount, &t.TotalSize, &enc, &t.PasswordHash, &t.MaxDownloads, &t.DownloadCount, &t.ExpiresAt, &t.CreatedAt, &completed, &t.Note, &t.SenderEmail, &t.ReceiverEmail)
+	).Scan(&t.ID, &t.UserID, &t.Name, &t.Mode, &t.Status, &t.FileCount, &t.TotalSize, &enc, &t.PasswordHash, &t.MaxDownloads, &t.DownloadCount, &t.ExpiresAt, &t.CreatedAt, &completed, &t.Note, &t.SenderEmail, &t.ReceiverEmail, &t.MagnetURI)
 	if err != nil {
 		return nil, err
 	}
@@ -273,6 +275,12 @@ func (db *DB) CompleteTransfer(id string) error {
 
 func (db *DB) IncrementDownload(id string) error {
 	_, err := db.conn.Exec(`UPDATE transfers SET download_count = download_count + 1 WHERE id = ?`, id)
+	return err
+}
+
+// UpdateMagnetURI stores the WebTorrent magnet URI for a transfer
+func (db *DB) UpdateMagnetURI(id, magnetURI string) error {
+	_, err := db.conn.Exec(`UPDATE transfers SET magnet_uri = ? WHERE id = ?`, magnetURI, id)
 	return err
 }
 

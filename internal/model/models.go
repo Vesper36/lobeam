@@ -35,6 +35,7 @@ type Transfer struct {
 	Note          string    `json:"note"`
 	SenderEmail   string    `json:"sender_email"`
 	ReceiverEmail string    `json:"receiver_email"`
+	MagnetURI     string    `json:"magnet_uri,omitempty"`
 }
 
 type File struct {

@@ -107,6 +107,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Post("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Post("/t/{id}/email", s.handleEmailTransfer)
+		r.Put("/t/{id}/magnet", s.handleUpdateMagnet)
 		r.Get("/clipboard/{id}", s.handleGetClipboard)
 		r.Post("/clipboard", s.handleCreateClipboard)
 

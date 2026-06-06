@@ -2,6 +2,7 @@
   import { api } from '$lib/utils/api.js';
   import { formatBytes, formatSpeed, formatDuration, copyToClipboard } from '$lib/utils/helpers.js';
   import { generateQR } from '$lib/utils/qrcode.js';
+  import { seedFiles, isWebTorrentSupported } from '$lib/utils/webtorrent.js';
 
   let files = $state([]);
   let uploading = $state(false);
@@ -131,6 +132,15 @@
       const completeRes = await api.completeUpload(transferId);
       result = completeRes;
       progress = 100;
+
+      // Seed via WebTorrent for P2P distribution (non-blocking)
+      if (isWebTorrentSupported() && files.length > 0) {
+        seedFiles(files, transferId).then(({ magnetURI }) => {
+          if (magnetURI && transferId) {
+            api.updateMagnet(transferId, magnetURI).catch(() => {});
+          }
+        }).catch(() => {});
+      }
 
       // If email is set, send automatically after completion
       if (receiverEmail && transferId) {
