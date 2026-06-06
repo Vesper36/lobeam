@@ -53,7 +53,7 @@ docker-build:
 	docker build -t lobeam:$(VERSION) -t lobeam:latest .
 
 docker-run:
-	docker run --rm -p 8080:8080 -v $(PWD)/data:/data lobeam:latest
+	docker run --rm -p 50030:50030 -v $(PWD)/data:/data lobeam:latest
 
 # Release binaries for all platforms
 release: clean

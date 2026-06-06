@@ -8,7 +8,7 @@ services:
     volumes:
       - lobeam-data:/data
     environment:
-      - LOBEAM_PUBLIC_URL=http://38.55.146.183:50030
+      - LOBEAM_PUBLIC_URL=https://lobeam.demo.vesper36.cc
       - LOBEAM_JWT_SECRET=change-this-to-a-random-secret
       - LOBEAM_ALLOW_ANONYMOUS=true
       - LOBEAM_TRANSFER_EXPIRY_HOURS=24

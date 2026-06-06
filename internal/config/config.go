@@ -57,7 +57,7 @@ func Load() *Config {
 	return &Config{
 		Host:         envStr("LOBEAM_HOST", "0.0.0.0"),
 		Port:         envInt("LOBEAM_PORT", 50030),
-		PublicURL:    envStr("LOBEAM_PUBLIC_URL", "http://localhost:8080"),
+		PublicURL:    envStr("LOBEAM_PUBLIC_URL", "http://localhost:50030"),
 		DataDir:      dataDir,
 
 		DBPath: dbPath,

@@ -99,7 +99,7 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 ```bash
 docker run -d \
   --name lobeam \
-  -p 8080:8080 \
+  -p 50030:50030 \
   -v lobeam-data:/data \
   -e LOBEAM_PUBLIC_URL=https://files.example.com \
   -e LOBEAM_JWT_SECRET=$(openssl rand -hex 32) \
@@ -113,7 +113,7 @@ services:
   lobeam:
     image: lobeam/lobeam:latest
     ports:
-      - "8080:8080"
+      - "50030:50030"
     volumes:
       - lobeam-data:/data
     environment:
@@ -139,7 +139,7 @@ make build
 ./dist/lobeam
 ```
 
-Visit `http://localhost:8080` -- the first registered user becomes admin.
+Visit `http://localhost:50030` -- the first registered user becomes admin.
 
 ## CLI
 
@@ -162,8 +162,8 @@ chmod +x lobeam-cli
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOBEAM_HOST` | `0.0.0.0` | Listen host |
-| `LOBEAM_PORT` | `8080` | Listen port |
-| `LOBEAM_PUBLIC_URL` | `http://localhost:8080` | Public-facing URL |
+| `LOBEAM_PORT` | `50030` | Listen port |
+| `LOBEAM_PUBLIC_URL` | `http://localhost:50030` | Public-facing URL |
 | `LOBEAM_DATA_DIR` | `./data` | Data storage directory |
 | `LOBEAM_JWT_SECRET` | `change-me` | JWT signing secret |
 | `LOBEAM_MAX_FILE_SIZE` | `0` (unlimited) | Max file size in bytes |
