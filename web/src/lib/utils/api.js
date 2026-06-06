@@ -17,6 +17,7 @@ async function request(path, options = {}) {
   if (res.status === 401) {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    throw new Error('unauthorized');
   }
 
   if (!res.ok) {
@@ -39,19 +40,22 @@ export const api = {
     request('/upload/init', { method: 'POST', body: data }),
   uploadChunk: async (transferId, fileId, chunkIndex, totalChunks, fileName, fileSize, mimeType, chunkData, chunkHash) => {
     const token = localStorage.getItem('access_token');
+    const headers = {
+      'X-Transfer-ID': transferId,
+      'X-File-ID': fileId || '',
+      'X-Chunk-Index': String(chunkIndex),
+      'X-Total-Chunks': String(totalChunks),
+      'X-File-Name': fileName,
+      'X-File-Size': String(fileSize),
+      'X-Mime-Type': mimeType,
+      'X-Chunk-Hash': chunkHash || '',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     const res = await fetch(`${API_BASE}/upload/chunk`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-Transfer-ID': transferId,
-        'X-File-ID': fileId || '',
-        'X-Chunk-Index': String(chunkIndex),
-        'X-Total-Chunks': String(totalChunks),
-        'X-File-Name': fileName,
-        'X-File-Size': String(fileSize),
-        'X-Mime-Type': mimeType,
-        'X-Chunk-Hash': chunkHash || '',
-      },
+      headers,
       body: chunkData,
     });
     if (!res.ok) throw new Error('Chunk upload failed');

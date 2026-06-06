@@ -498,7 +498,7 @@ func (s *Server) handleCreateP2P(w http.ResponseWriter, r *http.Request) {
 		Code:      code,
 		CreatorID: int64Ptr(getUserID(r)),
 		Status:    "waiting",
-		ExpiresAt: time.Now().Add(10 * time.Minute),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
 	}
 
 	if err := s.db.CreateP2PSession(session); err != nil {

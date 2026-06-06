@@ -54,8 +54,14 @@
     loading = true;
     error = '';
     try {
-      const res = await api.getP2P(code.trim());
-      session = res;
+      // Try to get session info, but connect regardless
+      try {
+        const res = await api.getP2P(code.trim());
+        session = res;
+      } catch {
+        // Session may have expired in DB -- connect anyway via WebSocket
+        session = { code: code.trim() };
+      }
       isCaller = false;
       connectWS(code.trim());
     } catch (err) {
