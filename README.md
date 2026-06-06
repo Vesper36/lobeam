@@ -6,6 +6,14 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 
 [Quick Start](#quick-start) | [Features](#features) | [API](#api) | [Deployment](#deployment) | [CLI](#cli) | [Roadmap](#roadmap)
 
+### Live
+
+| Resource | URL |
+|----------|-----|
+| Demo | [lobeam.demo.vesper36.cc](https://lobeam.demo.vesper36.cc) |
+| Docs | [lobeam.docs.vesper36.cc](https://lobeam.docs.vesper36.cc) |
+| API Port | `50030` |
+
 ---
 
 ## Why LoBeam?
