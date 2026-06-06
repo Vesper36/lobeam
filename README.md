@@ -360,11 +360,11 @@ Available tools:
 - [x] HTTP Range download (resumeable downloads)
 - [x] Chunk resume upload (skip already uploaded chunks)
 - [x] Admin panel (users, brand, settings, audit logs)
-- [ ] SSO/OIDC integration
-- [ ] ShareX integration
-- [ ] Chrome extension
-- [ ] Discord/Slack bot
-- [ ] Outlook plugin
+- [x] SSO/OIDC integration
+- [x] ShareX integration
+- [x] Chrome extension
+- [x] Discord/Slack bot
+- [x] Outlook plugin
 - [ ] Mobile apps (iOS/Android)
 - [ ] WebTorrent multi-peer distribution
 
