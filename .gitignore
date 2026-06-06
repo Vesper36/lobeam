@@ -38,3 +38,6 @@ Thumbs.db
 .env
 .env.local
 .env.production
+mimo-cli
+lobeam
+lobeam-cli
