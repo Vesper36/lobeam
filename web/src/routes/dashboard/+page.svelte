@@ -25,6 +25,9 @@
   let requestMaxSize = $state(0);
   let requestMaxFiles = $state(0);
   let requestExpiry = $state(30);
+  let requestAllowedTypes = $state('');
+  let requestCustomFields = $state('name,email');
+  let requestRequiredFields = $state('email');
 
   $effect(() => {
     loadAll();
@@ -59,6 +62,13 @@
     setTimeout(() => copied = '', 2000);
   }
 
+  function parseList(value) {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
   async function createFolder() {
     try {
       const res = await api.createWebFolder({
@@ -80,16 +90,25 @@
 
   async function createRequest() {
     try {
+      const maxFileSizeMB = Number(requestMaxSize) || 0;
       const res = await api.createFileRequest({
         title: requestTitle,
         description: requestDesc,
-        max_file_size: requestMaxSize,
-        max_files: requestMaxFiles,
-        expiry_days: requestExpiry,
+        max_file_size: maxFileSizeMB > 0 ? Math.round(maxFileSizeMB * 1024 * 1024) : 0,
+        max_files: Number(requestMaxFiles) || 0,
+        allowed_types: parseList(requestAllowedTypes),
+        custom_fields: parseList(requestCustomFields),
+        require_fields: parseList(requestRequiredFields),
+        expiry_days: Number(requestExpiry) || 30,
       });
       showCreateRequest = false;
       requestTitle = '';
       requestDesc = '';
+      requestMaxSize = 0;
+      requestMaxFiles = 0;
+      requestAllowedTypes = '';
+      requestCustomFields = 'name,email';
+      requestRequiredFields = 'email';
       fileRequests = await api.listFileRequests();
       copyLink(res.url, 'request-url');
     } catch (err) {
@@ -319,6 +338,18 @@
             <div>
               <label class="block text-xs text-gray-400 mb-1">Max files (0 = unlimited)</label>
               <input type="number" bind:value={requestMaxFiles} min="0" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Allowed types</label>
+              <input type="text" bind:value={requestAllowedTypes} placeholder=".zip,.mp4,.psd or blank for all" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Sender fields</label>
+              <input type="text" bind:value={requestCustomFields} placeholder="name,email" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Required fields</label>
+              <input type="text" bind:value={requestRequiredFields} placeholder="email" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
             </div>
           </div>
           <button onclick={createRequest} disabled={!requestTitle} class="mt-4 px-6 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-sm font-medium disabled:opacity-50 transition-colors">

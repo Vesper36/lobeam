@@ -1,6 +1,6 @@
 <script>
   import { api } from '$lib/utils/api.js';
-  import { timeAgo } from '$lib/utils/helpers.js';
+  import { formatBytes, timeAgo } from '$lib/utils/helpers.js';
 
   let me = $state(null);
   let users = $state([]);

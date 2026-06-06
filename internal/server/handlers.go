@@ -111,14 +111,14 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name         string `json:"name"`
-		FileCount    int    `json:"file_count"`
-		Encrypted    bool   `json:"encrypted"`
-		Password     string `json:"password"`
-		MaxDownloads int    `json:"max_downloads"`
-		ExpiryHours  int    `json:"expiry_hours"`
-		Note         string `json:"note"`
-		SenderEmail  string `json:"sender_email"`
+		Name          string `json:"name"`
+		FileCount     int    `json:"file_count"`
+		Encrypted     bool   `json:"encrypted"`
+		Password      string `json:"password"`
+		MaxDownloads  int    `json:"max_downloads"`
+		ExpiryHours   int    `json:"expiry_hours"`
+		Note          string `json:"note"`
+		SenderEmail   string `json:"sender_email"`
 		ReceiverEmail string `json:"receiver_email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -180,21 +180,6 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 		"expires_at":   t.ExpiresAt,
 		"download_url": fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, t.ID),
 	})
-
-	// Auto-send email notification if receiver_email is set
-	if req.ReceiverEmail != "" && s.notify != nil {
-		go func() {
-			downloadURL := fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, t.ID)
-			from := req.SenderEmail
-			if from == "" {
-				from = "noreply@lobeam.local"
-			}
-			subject := fmt.Sprintf("Files shared with you via LoBeam")
-			body := fmt.Sprintf("You have received %d file(s).\n\nDownload: %s\n\nNote: %s\n\nSent via LoBeam",
-				req.FileCount, downloadURL, req.Note)
-			_ = s.notify.SendRaw(req.ReceiverEmail, from, subject, body)
-		}()
-	}
 
 	// Audit log
 	if userID > 0 {
@@ -316,8 +301,8 @@ func (s *Server) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"status":     "ready",
-		"transfer":   t,
+		"status":       "ready",
+		"transfer":     t,
 		"download_url": fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, transferID),
 	})
 }
@@ -663,26 +648,26 @@ func generateCode(length int) string {
 
 // MIME types that browsers can preview inline
 var previewMIMETypes = map[string]bool{
-	"image/jpeg":      true,
-	"image/png":       true,
-	"image/gif":       true,
-	"image/webp":      true,
-	"image/svg+xml":   true,
-	"video/mp4":       true,
-	"video/webm":      true,
-	"video/ogg":       true,
-	"audio/mpeg":      true,
-	"audio/ogg":       true,
-	"audio/wav":       true,
-	"audio/webm":      true,
-	"application/pdf": true,
-	"text/plain":      true,
-	"text/html":       true,
-	"text/css":        true,
-	"text/javascript": true,
-	"text/csv":        true,
+	"image/jpeg":       true,
+	"image/png":        true,
+	"image/gif":        true,
+	"image/webp":       true,
+	"image/svg+xml":    true,
+	"video/mp4":        true,
+	"video/webm":       true,
+	"video/ogg":        true,
+	"audio/mpeg":       true,
+	"audio/ogg":        true,
+	"audio/wav":        true,
+	"audio/webm":       true,
+	"application/pdf":  true,
+	"text/plain":       true,
+	"text/html":        true,
+	"text/css":         true,
+	"text/javascript":  true,
+	"text/csv":         true,
 	"application/json": true,
-	"application/xml": true,
+	"application/xml":  true,
 }
 
 var previewExtensions = map[string]bool{

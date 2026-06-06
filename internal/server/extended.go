@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -144,9 +146,18 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 	mimeType := r.Header.Get("X-Mime-Type")
 	uploaderName := r.Header.Get("X-Uploader-Name")
 	uploaderEmail := r.Header.Get("X-Uploader-Email")
+	uploaderMessage := r.Header.Get("X-Uploader-Message")
 
 	if fileName == "" {
 		writeError(w, http.StatusBadRequest, "missing file name")
+		return
+	}
+	if fr.MaxFiles > 0 && fr.FileCount >= fr.MaxFiles {
+		writeError(w, http.StatusForbidden, "request file limit reached")
+		return
+	}
+	if allowedTypes := parseJSONStringList(fr.AllowedTypes); !fileTypeAllowed(fileName, mimeType, allowedTypes) {
+		writeError(w, http.StatusForbidden, "file type is not allowed")
 		return
 	}
 
@@ -162,6 +173,12 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	actualSize := int64(len(body))
+	if fr.MaxFileSize > 0 && actualSize > fr.MaxFileSize {
+		writeError(w, http.StatusForbidden, "file exceeds size limit")
+		return
+	}
+
 	// Store file as part of a transfer associated with this request
 	transferID := uuid.New().String()[:8]
 	fileID := uuid.New().String()[:12]
@@ -171,8 +188,6 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "failed to store file")
 		return
 	}
-
-	actualSize := int64(len(body))
 
 	// Create transfer record
 	t := &model.Transfer{
@@ -188,20 +203,36 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 	}
 	if err := s.db.CreateTransfer(t); err == nil {
 		f := &model.File{
-			ID:         fileID,
-			TransferID: transferID,
-			Name:       fileName,
-			Size:       actualSize,
-			MimeType:   mimeType,
-			ChunkCount: 1,
+			ID:          fileID,
+			TransferID:  transferID,
+			Name:        fileName,
+			Size:        actualSize,
+			MimeType:    mimeType,
+			ChunkCount:  1,
+			ChunkSize:   actualSize,
+			StoragePath: storagePath,
 		}
-		s.db.CreateFile(f)
+		if err := s.db.CreateFile(f); err == nil {
+			_ = s.db.CreateChunk(&model.Chunk{
+				ID:         uuid.New().String()[:12],
+				FileID:     fileID,
+				Index:      0,
+				Size:       actualSize,
+				Uploaded:   true,
+				StorageKey: storagePath,
+			})
+		}
 	}
+	_ = s.db.AddFileRequestUpload(id, actualSize)
 
 	// Audit log
 	if fr.UserID != nil {
+		details := fmt.Sprintf("File %s submitted to request %s by %s", fileName, id, uploaderName)
+		if uploaderMessage != "" {
+			details = fmt.Sprintf("%s: %s", details, uploaderMessage)
+		}
 		s.db.CreateAuditLog(fr.UserID, "upload", "file_request",
-			fmt.Sprintf("File %s submitted to request %s by %s", fileName, id, uploaderName), r.RemoteAddr)
+			details, r.RemoteAddr)
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
@@ -211,6 +242,7 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 		"request_id":     id,
 		"uploader_name":  uploaderName,
 		"uploader_email": uploaderEmail,
+		"message":        uploaderMessage,
 	})
 }
 
@@ -243,15 +275,15 @@ func (s *Server) handleCreateWebFolder(w http.ResponseWriter, r *http.Request) {
 	token := generateToken(16)
 
 	folder := &model.WebFolder{
-		ID:           uuid.New().String()[:8],
-		Token:        token,
-		UserID:       int64Ptr(getUserID(r)),
-		Name:         req.Name,
-		Description:  req.Description,
-		Mode:         req.Mode,
-		MaxFileSize:  req.MaxFileSize,
-		MaxFiles:     req.MaxFiles,
-		ExpiresAt:    time.Now().Add(time.Duration(req.ExpiryDays) * 24 * time.Hour),
+		ID:          uuid.New().String()[:8],
+		Token:       token,
+		UserID:      int64Ptr(getUserID(r)),
+		Name:        req.Name,
+		Description: req.Description,
+		Mode:        req.Mode,
+		MaxFileSize: req.MaxFileSize,
+		MaxFiles:    req.MaxFiles,
+		ExpiresAt:   time.Now().Add(time.Duration(req.ExpiryDays) * 24 * time.Hour),
 	}
 
 	if req.Password != "" {
@@ -490,8 +522,13 @@ func (s *Server) handleEmailTransfer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "email is required")
 		return
 	}
+	if s.notify == nil {
+		writeError(w, http.StatusServiceUnavailable, "email service is not configured")
+		return
+	}
 
-	if err := s.notify.SendTransferReady(req.Email, transfer.ID, transfer.Name); err != nil {
+	downloadURL := fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, transfer.ID)
+	if err := s.notify.SendTransferEmail(req.Email, transfer.SenderEmail, req.Subject, req.Message, downloadURL, transfer.Name); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to send email: "+err.Error())
 		return
 	}
@@ -511,6 +548,48 @@ func parseInt64(s string) (int64, error) {
 	var n int64
 	_, err := fmt.Sscanf(s, "%d", &n)
 	return n, err
+}
+
+func parseJSONStringList(raw string) []string {
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil
+	}
+	clean := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			clean = append(clean, item)
+		}
+	}
+	return clean
+}
+
+func fileTypeAllowed(fileName, mimeType string, allowedTypes []string) bool {
+	if len(allowedTypes) == 0 {
+		return true
+	}
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(fileName)), ".")
+	mime := strings.ToLower(mimeType)
+	for _, allowed := range allowedTypes {
+		normalized := strings.TrimSpace(strings.ToLower(allowed))
+		if normalized == "" {
+			continue
+		}
+		if strings.HasPrefix(normalized, ".") {
+			normalized = strings.TrimPrefix(normalized, ".")
+		}
+		if strings.HasSuffix(normalized, "/*") && strings.HasPrefix(mime, strings.TrimSuffix(normalized, "*")) {
+			return true
+		}
+		if strings.Contains(normalized, "/") && normalized == mime {
+			return true
+		}
+		if normalized == ext {
+			return true
+		}
+	}
+	return false
 }
 
 func bytesReader(b []byte) io.Reader {

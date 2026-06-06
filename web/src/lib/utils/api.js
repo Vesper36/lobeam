@@ -130,6 +130,7 @@ export const api = {
       xhr.setRequestHeader('X-Mime-Type', file.type || 'application/octet-stream');
       if (meta?.name) xhr.setRequestHeader('X-Uploader-Name', meta.name);
       if (meta?.email) xhr.setRequestHeader('X-Uploader-Email', meta.email);
+      if (meta?.message) xhr.setRequestHeader('X-Uploader-Message', meta.message);
       if (onProgress) {
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) onProgress(e.loaded / e.total);

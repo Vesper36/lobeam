@@ -48,6 +48,23 @@
 
   async function uploadAll() {
     if (files.length === 0) return;
+    if (requireFields.includes('name') && !senderName.trim()) {
+      error = 'Your name is required';
+      return;
+    }
+    if (requireFields.includes('email') && !senderEmail.trim()) {
+      error = 'Your email is required';
+      return;
+    }
+    if (req.max_files > 0 && files.length > req.max_files) {
+      error = `This request accepts up to ${req.max_files} file${req.max_files === 1 ? '' : 's'}`;
+      return;
+    }
+    const blockedFile = files.find((file) => !isTypeAllowed(file.name));
+    if (blockedFile) {
+      error = `${blockedFile.name} is not an allowed file type`;
+      return;
+    }
     uploading = true;
     error = '';
     try {
@@ -55,7 +72,7 @@
         uploadProgress = 0;
         await api.uploadToFileRequest(id, file, (p) => {
           uploadProgress = Math.round(p * 100);
-        }, { name: senderName, email: senderEmail });
+        }, { name: senderName, email: senderEmail, message });
       }
       success = true;
     } catch (err) {
@@ -155,6 +172,8 @@
           class="border-2 border-dashed rounded-xl transition-all duration-200 mb-6 {files.length > 0 ? 'border-violet-400 bg-violet-500/5' : 'border-gray-700 hover:border-gray-600'}"
           ondrop={handleDrop}
           ondragover={(e) => e.preventDefault()}
+          role="region"
+          aria-label="File request upload area"
         >
           {#if files.length === 0}
             <div class="p-8 text-center">
@@ -175,7 +194,7 @@
                     {#if !isTypeAllowed(file.name)}
                       <span class="text-xs text-red-400">Not allowed</span>
                     {/if}
-                    <button onclick={() => removeFile(i)} class="text-gray-500 hover:text-white">
+                    <button onclick={() => removeFile(i)} class="text-gray-500 hover:text-white" aria-label="Remove file">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                   </div>

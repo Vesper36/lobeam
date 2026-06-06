@@ -43,6 +43,16 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 
 ## Features
 
+### Product Workflows
+- **Email large files** -- Enter sender and recipient emails, optionally add a subject/message, upload once, and LoBeam emails a secure cloud download link.
+- **Secure share links** -- Upload files to managed storage and share a unique URL or QR code by email, chat, websites, or social platforms. Recipients do not need an account.
+- **Receive files from anyone** -- File Requests and upload-only Web Folders let clients, users, and non-technical senders submit large files without registering or installing software.
+- **Web folders for batch work** -- Share a folder URL for many files at once. Use `upload_only`, `download_only`, or `both` to collect, distribute, or collaborate.
+- **Real-time sharing** -- The download URL is available immediately after transfer initialization, before all chunks have finished uploading.
+- **Online and offline transfer** -- P2P mode uses WebRTC for direct browser transfer when both parties are online; link mode stages files in the cloud for later download.
+- **Brand-controlled portals** -- Configure a custom domain, logo, colors, email sender/footer, limits, and embedded forms to match company identity.
+- **Enterprise oversight** -- Multi-user accounts, admin roles, storage quotas, audit logs, activity monitoring, expiry controls, and download limits support managed file operations.
+
 ### Core Transfer
 - **Dual Mode Transfer** -- Link mode (upload to server) + P2P mode (direct WebRTC transfer)
 - **Chunked Upload / 续传** -- Automatic file splitting with parallel chunk upload, resume from interruption
@@ -94,6 +104,16 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 - **File Previews** -- Preview images, documents, media
 - **QR Codes** -- Generate QR codes for mobile sharing
 - **Real-time Sharing** -- Start sharing before upload completes
+
+### Access Methods
+- **Browser UI** -- Drag and drop files, configure expiry/download limits, email recipients, and copy links.
+- **Chrome extension** -- Upload from browser context and insert file links into active workflows.
+- **Outlook add-in example** -- Send large attachments from Microsoft Outlook using the included manifest example.
+- **Discord bot example** -- Use slash-command based sharing for communities and teams.
+- **ShareX config** -- Upload screenshots and files through ShareX-compatible custom uploader settings.
+- **CLI** -- Script uploads from shell, CI jobs, and automation.
+- **MCP server** -- Let AI tools such as Claude or Cursor upload files and return share links through the LoBeam MCP endpoint.
+- **Embedded upload form** -- Add a receiving form to any website with a one-line iframe snippet.
 
 ### CLI Tool
 - **Cross-platform** -- Linux, macOS, Windows

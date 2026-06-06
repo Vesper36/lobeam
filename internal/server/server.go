@@ -26,14 +26,14 @@ import (
 )
 
 type Server struct {
-	cfg       *config.Config
-	db        *db.DB
-	store     storage.Store
-	userSvc   *user.Service
-	notify    *notify.Service
-	hub       *WSHub
-	staticFS  fs.FS
-	oidcMgr   *oidc.Manager
+	cfg        *config.Config
+	db         *db.DB
+	store      storage.Store
+	userSvc    *user.Service
+	notify     *notify.Service
+	hub        *WSHub
+	staticFS   fs.FS
+	oidcMgr    *oidc.Manager
 	oidcStates sync.Map // state -> oidcStateEntry
 }
 
@@ -82,7 +82,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Encryption-Key", "X-Transfer-ID", "X-File-ID", "X-Chunk-Index", "X-Total-Chunks", "X-File-Name", "X-File-Size", "X-Mime-Type", "X-Chunk-Hash", "X-Uploader-Name", "X-Uploader-Email", "X-Password"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Encryption-Key", "X-Transfer-ID", "X-File-ID", "X-Chunk-Index", "X-Total-Chunks", "X-File-Name", "X-File-Size", "X-Mime-Type", "X-Chunk-Hash", "X-Uploader-Name", "X-Uploader-Email", "X-Uploader-Message", "X-Password"},
 		ExposedHeaders:   []string{"X-Upload-Offset", "X-Total-Size", "X-File-Name", "X-File-Size", "X-Encrypted", "Accept-Ranges", "Content-Range"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -197,7 +197,7 @@ func (s *Server) serveSPA() http.HandlerFunc {
 			if err == nil {
 				f.Close()
 				// Set correct content type
-			contentType := "text/html"
+				contentType := "text/html"
 				if strings.HasSuffix(filePath, ".js") {
 					contentType = "application/javascript"
 				} else if strings.HasSuffix(filePath, ".css") {

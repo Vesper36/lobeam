@@ -42,12 +42,12 @@ func (db *DB) GetDefaultBrand() (*model.Brand, error) {
 				_, _ = db.conn.Exec(`INSERT INTO brands (domain, name) VALUES (NULL, 'LoBeam')`)
 			}
 			return &model.Brand{
-				Name:               "LoBeam",
-				PrimaryColor:       "#7c3aed",
-				BackgroundColor:    "#09090b",
-				AccentColor:        "#4f46e5",
-				ShowPoweredBy:      true,
-				DefaultExpiryHours: 24,
+				Name:                "LoBeam",
+				PrimaryColor:        "#7c3aed",
+				BackgroundColor:     "#09090b",
+				AccentColor:         "#4f46e5",
+				ShowPoweredBy:       true,
+				DefaultExpiryHours:  24,
 				DefaultMaxDownloads: 100,
 			}, nil
 		}
@@ -108,12 +108,12 @@ func (db *DB) GetFileRequest(id string) (*model.FileRequest, error) {
 	return r, nil
 }
 
-func (db *DB) UpdateFileRequestCounts(id string) error {
+func (db *DB) AddFileRequestUpload(id string, size int64) error {
 	_, err := db.conn.Exec(`
 		UPDATE file_requests SET
-			file_count = (SELECT COUNT(*) FROM transfers WHERE receiver_email != '' AND mode = 'request' AND sender_email = ?),
-			total_size = (SELECT COALESCE(SUM(total_size), 0) FROM transfers WHERE mode = 'request' AND sender_email = ?)
-		WHERE id = ?`, id, id, id)
+			file_count = file_count + 1,
+			total_size = total_size + ?
+		WHERE id = ?`, size, id)
 	return err
 }
 

@@ -38,6 +38,7 @@ Thumbs.db
 .env
 .env.local
 .env.production
-mimo-cli
-lobeam
-lobeam-cli
+/mimo-cli
+/lobeam
+/lobeam-cli
+.ace-tool/

@@ -22,10 +22,62 @@
   let shareEarlyLink = $state('');
   let senderEmail = $state('');
   let receiverEmail = $state('');
+  let emailSubject = $state('');
   let emailSent = $state(false);
   let transferId = $state('');
 
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+  const workflowLinks = [
+    {
+      title: 'Email delivery',
+      detail: 'Send a secure download link from your email fields after upload.',
+      href: '#email-options',
+      tone: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+    },
+    {
+      title: 'Web folders',
+      detail: 'Create upload, download, or two-way folders for batch sharing.',
+      href: '/dashboard',
+      tone: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    },
+    {
+      title: 'File requests',
+      detail: 'Collect large files with sender fields and private request links.',
+      href: '/dashboard',
+      tone: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    },
+    {
+      title: 'P2P live transfer',
+      detail: 'Use WebRTC for LAN and browser-to-browser direct transfer.',
+      href: '/p2p',
+      tone: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
+    },
+  ];
+
+  const capabilityGroups = [
+    ['Any-size transfer', 'Chunked upload resume', 'HTTP Range download resume', 'Real-time share link'],
+    ['Anonymous download', 'QR code sharing', 'File previews', 'MP4 inline playback'],
+    ['E2E encryption', 'Password links', 'Expiry controls', 'Download limits'],
+    ['Brand domain', 'Custom colors', 'Custom logo', 'Embedded upload form'],
+  ];
+
+  const accessMethods = [
+    'Browser upload',
+    'Chrome extension',
+    'Outlook add-in',
+    'Discord bot',
+    'CLI',
+    'MCP server',
+    'ShareX config',
+    'Embed form',
+  ];
+
+  const useCases = [
+    'Send original photos and videos without compression.',
+    'Collect deliverables from clients who do not need an account.',
+    'Share a folder link or QR code across chat, email, and websites.',
+    'Use offline cloud staging or P2P direct transfer depending on the network.',
+  ];
 
   function handleDrop(e) {
     e.preventDefault();
@@ -57,6 +109,7 @@
     transferId = '';
     qrDataUrl = '';
     emailSent = false;
+    emailSubject = '';
   }
 
   async function upload() {
@@ -147,7 +200,7 @@
         try {
           await api.emailTransfer(transferId, {
             email: receiverEmail,
-            subject: `Files shared via LoBeam: ${files.length > 1 ? `${files.length} files` : files[0].name}`,
+            subject: emailSubject || `Files shared via LoBeam: ${files.length > 1 ? `${files.length} files` : files[0].name}`,
             message: note || 'Files have been shared with you.',
           });
           emailSent = true;
@@ -170,23 +223,20 @@
     }
   }
 
-  function handleKeyDown(e) {
-    if (notesRef && e.key === ' ' && e.shiftKey) {
-      e.preventDefault();
-    }
-  }
 </script>
 
-<div class="max-w-3xl mx-auto">
-  <!-- Hero -->
-  <div class="text-center mb-10">
-    <h1 class="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">
-      Share files, securely
-    </h1>
-    <p class="text-lg text-gray-400 max-w-xl mx-auto">
-      End-to-end encrypted file transfer. No registration required. Files expire automatically.
-    </p>
-  </div>
+<div class="max-w-7xl mx-auto space-y-10">
+  <section class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_24rem] gap-8 items-start">
+    <div class="min-w-0">
+      <div class="mb-6">
+        <p class="text-xs uppercase text-gray-500 mb-3">Managed large-file transfer</p>
+        <h1 class="text-3xl sm:text-4xl font-bold mb-3 text-white">
+          Send, receive, and manage files without size friction.
+        </h1>
+        <p class="text-base text-gray-400 max-w-2xl">
+          Secure cloud links, resumable uploads, live sharing, file requests, web folders, P2P transfer, and brand controls in one self-hosted service.
+        </p>
+      </div>
 
   {#if result}
     <!-- Success state -->
@@ -310,7 +360,7 @@
             {/if}
 
             <!-- Email section -->
-            <div class="border-t border-gray-700/50 pt-4">
+            <div id="email-options" class="border-t border-gray-700/50 pt-4">
               <p class="text-sm font-medium mb-3">Send via email</p>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -321,6 +371,10 @@
                   <label class="block text-xs text-gray-400 mb-1">Recipient email</label>
                   <input type="email" bind:value={receiverEmail} placeholder="them@example.com" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
                 </div>
+              </div>
+              <div class="mt-3">
+                <label class="block text-xs text-gray-400 mb-1">Subject (optional)</label>
+                <input type="text" bind:value={emailSubject} placeholder="Project files" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
               </div>
             </div>
 
@@ -377,4 +431,55 @@
       {/if}
     </div>
   {/if}
+    </div>
+
+    <aside class="lg:sticky lg:top-24 space-y-4">
+      <div>
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <h2 class="text-sm font-semibold text-gray-200">Workflows</h2>
+          <a href="/dashboard" class="text-xs text-gray-400 hover:text-white transition-colors">Manage</a>
+        </div>
+        <div class="space-y-3">
+          {#each workflowLinks as item}
+            <a href={item.href} class="block rounded-xl border border-gray-800 bg-gray-950/60 p-4 hover:border-gray-700 transition-colors">
+              <span class="inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium {item.tone}">{item.title}</span>
+              <p class="mt-2 text-sm text-gray-300 leading-5">{item.detail}</p>
+            </a>
+          {/each}
+        </div>
+      </div>
+
+      <div>
+        <h2 class="text-sm font-semibold text-gray-200 mb-4">Access methods</h2>
+        <div class="flex flex-wrap gap-2">
+          {#each accessMethods as method}
+            <span class="rounded-lg border border-gray-800 bg-gray-950 px-2.5 py-1.5 text-xs text-gray-300">{method}</span>
+          {/each}
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    {#each capabilityGroups as group}
+      <div class="rounded-2xl border border-gray-800 bg-gray-900/60 p-5">
+        <div class="space-y-2">
+          {#each group as item}
+            <div class="flex items-center gap-2 text-sm text-gray-300">
+              <span class="h-1.5 w-1.5 rounded-full bg-gray-500"></span>
+              <span>{item}</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  </section>
+
+  <section class="rounded-2xl border border-gray-800 bg-gray-900/60 p-5">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {#each useCases as item}
+        <p class="text-sm leading-6 text-gray-300">{item}</p>
+      {/each}
+    </div>
+  </section>
 </div>

@@ -2,7 +2,7 @@
   import { page } from '$app/stores';
   import { api } from '$lib/utils/api.js';
   import { formatBytes, timeUntil } from '$lib/utils/helpers.js';
-  import QRCode from '$lib/utils/qrcode.js';
+  import { generateQR } from '$lib/utils/qrcode.js';
 
   let folder = $state(null);
   let files = $state([]);
@@ -13,6 +13,7 @@
   let uploadFiles = $state([]);
   let password = $state('');
   let showPassword = $state(false);
+  let showQr = $state(false);
   let copied = $state(false);
   let qrDataUrl = $state('');
 
@@ -30,7 +31,7 @@
       files = await api.getWebFolderFiles(token);
       // Generate QR code
       const url = `${window.location.origin}/f/${token}`;
-      qrDataUrl = QRCode.generateDataURL(url, 128);
+      qrDataUrl = await generateQR(url, 128);
     } catch (err) {
       error = err.message;
     } finally {
@@ -140,6 +141,13 @@
             </button>
           {/if}
         </div>
+
+        {#if showQr && qrDataUrl}
+          <div class="mt-4 inline-flex flex-col items-center rounded-xl border border-gray-800 bg-gray-950 p-3">
+            <img src={qrDataUrl} alt="Folder QR Code" class="h-32 w-32 rounded-lg bg-white p-2" />
+            <p class="mt-2 text-xs text-gray-500">Scan folder link</p>
+          </div>
+        {/if}
       </div>
 
       <!-- Upload area (when allowed) -->
@@ -159,6 +167,8 @@
               class="border-2 border-dashed rounded-xl transition-all duration-200 {uploadFiles.length > 0 ? 'border-violet-400 bg-violet-500/5' : 'border-gray-700 hover:border-gray-600'}"
               ondrop={handleDrop}
               ondragover={(e) => e.preventDefault()}
+              role="region"
+              aria-label="Web folder upload area"
             >
               {#if uploadFiles.length === 0}
                 <div class="p-8 text-center">
@@ -181,7 +191,7 @@
                         {:else if uploadProgress[file.name] === 100}
                           <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                         {/if}
-                        <button onclick={() => removeFile(i)} class="text-gray-500 hover:text-white">
+                        <button onclick={() => removeFile(i)} class="text-gray-500 hover:text-white" aria-label="Remove file">
                           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                       </div>

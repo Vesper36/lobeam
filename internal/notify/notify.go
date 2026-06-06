@@ -42,6 +42,25 @@ This link will expire based on the sender's settings.
 	return s.send(toEmail, subject, body)
 }
 
+func (s *Service) SendTransferEmail(toEmail, fromEmail, subject, message, downloadURL, transferName string) error {
+	if !s.isEnabled() || toEmail == "" {
+		return nil
+	}
+	if fromEmail == "" {
+		fromEmail = s.cfg.SMTPFrom
+	}
+	if subject == "" {
+		subject = fmt.Sprintf("Files shared via LoBeam: %s", transferName)
+	}
+	body := fmt.Sprintf("Files have been shared with you via LoBeam.\n\nTransfer: %s\nDownload: %s", transferName, downloadURL)
+	if message != "" {
+		body = fmt.Sprintf("%s\n\nMessage:\n%s", body, message)
+	}
+	body = fmt.Sprintf("%s\n\nThis link will expire based on the sender's settings.", body)
+
+	return s.SendRaw(toEmail, fromEmail, subject, body)
+}
+
 func (s *Service) SendDownloadNotification(senderEmail, transferID, fileName string) error {
 	if !s.isEnabled() || senderEmail == "" {
 		return nil

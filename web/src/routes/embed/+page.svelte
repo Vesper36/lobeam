@@ -7,9 +7,16 @@
   let error = $state('');
   let copied = $state(false);
   let note = $state('');
+  let brandColor = $state('#7c3aed');
 
   const CHUNK_SIZE = 5 * 1024 * 1024;
-  let currentFile = null;
+  let currentFile = $state(null);
+
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      brandColor = new URLSearchParams(window.location.search).get('color') || '#7c3aed';
+    }
+  });
 
   function handleDrop(e) {
     e.preventDefault();
@@ -28,9 +35,6 @@
     progress = 0;
 
     try {
-      // Read brand config from parent frame if available
-      const brandColor = new URLSearchParams(window.location.search).get('color') || '#7c3aed';
-
       const initRes = await (await fetch('/api/upload/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,7 +124,7 @@
       <p style="font-weight:600;margin-bottom:8px;color:white;">File uploaded</p>
       <div style="display:flex;gap:8px;margin-bottom:12px;">
         <input type="text" value={result.download_url} readonly style="flex:1;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:8px 12px;font-size:13px;color:#d1d5db;"/>
-        <button onclick={copyLink} style="padding:8px 16px;background:#7c3aed;border:none;border-radius:8px;color:white;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">{copied ? 'Copied!' : 'Copy'}</button>
+        <button onclick={copyLink} style="padding:8px 16px;background:{brandColor};border:none;border-radius:8px;color:white;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">{copied ? 'Copied!' : 'Copy'}</button>
       </div>
       <button onclick={reset} style="background:none;border:none;color:#9ca3af;font-size:13px;cursor:pointer;">Upload another file</button>
     </div>
@@ -131,6 +135,8 @@
       ondrop={handleDrop}
       ondragover={(e) => { e.preventDefault(); dragOver = true; }}
       ondragleave={() => dragOver = false}
+      role="region"
+      aria-label="Embedded upload area"
     >
       {#if currentFile}
         <div style="margin-bottom:16px;">
@@ -141,7 +147,7 @@
         {#if uploading}
           <div style="margin-bottom:16px;">
             <div style="width:100%;height:4px;background:#1f2937;border-radius:2px;overflow:hidden;margin-bottom:8px;">
-              <div style="height:100%;background:linear-gradient(90deg,#7c3aed,#4f46e5);border-radius:2px;transition:width .3s;width:{progress}%;"></div>
+              <div style="height:100%;background:{brandColor};border-radius:2px;transition:width .3s;width:{progress}%;"></div>
             </div>
             <p style="font-size:12px;color:#6b7280;">{progress}%</p>
           </div>
@@ -156,7 +162,7 @@
         {/if}
 
         <div style="display:flex;gap:8px;justify-content:center;">
-          <button onclick={upload} disabled={uploading} style="padding:8px 24px;background:#7c3aed;border:none;border-radius:10px;color:white;font-size:14px;font-weight:600;cursor:pointer;opacity:{uploading ? '0.5' : '1'};">
+          <button onclick={upload} disabled={uploading} style="padding:8px 24px;background:{brandColor};border:none;border-radius:10px;color:white;font-size:14px;font-weight:600;cursor:pointer;opacity:{uploading ? '0.5' : '1'};">
             {uploading ? 'Uploading...' : 'Upload'}
           </button>
           <button onclick={() => currentFile = null} style="padding:8px 16px;background:#1f2937;border:none;border-radius:10px;color:#9ca3af;font-size:14px;cursor:pointer;">Cancel</button>
@@ -169,7 +175,7 @@
           <p style="font-weight:500;margin-bottom:4px;color:#e5e7eb;">Drop file here</p>
           <p style="font-size:12px;color:#6b7280;">or click to browse</p>
         </div>
-        <label style="display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:#7c3aed;border-radius:10px;color:white;font-size:14px;font-weight:500;cursor:pointer;">
+        <label style="display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:{brandColor};border-radius:10px;color:white;font-size:14px;font-weight:500;cursor:pointer;">
           Select file
           <input type="file" class="hidden" onchange={handleFileInput} style="display:none;"/>
         </label>
