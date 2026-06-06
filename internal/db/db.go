@@ -45,8 +45,6 @@ func (db *DB) migrate() error {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
-	CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc ON users(oidc_provider, oidc_sub) WHERE oidc_provider != '';
-
 	CREATE TABLE IF NOT EXISTS transfers (
 		id TEXT PRIMARY KEY,
 		user_id INTEGER,
@@ -212,7 +210,22 @@ func (db *DB) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_request_status ON file_requests(status);
 	`
 	_, err := db.conn.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Migration: add OIDC columns to existing users table
+	migrations := []string{
+		`ALTER TABLE users ADD COLUMN oidc_provider TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN oidc_sub TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc ON users(oidc_provider, oidc_sub) WHERE oidc_provider != ''`,
+	}
+	for _, m := range migrations {
+		db.conn.Exec(m) // ignore "duplicate column" errors
+	}
+
+	return nil
 }
 
 // ---- Transfer ----
