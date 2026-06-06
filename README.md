@@ -365,8 +365,8 @@ Available tools:
 - [x] Chrome extension
 - [x] Discord/Slack bot
 - [x] Outlook plugin
+- [x] WebTorrent multi-peer distribution
 - [ ] Mobile apps (iOS/Android)
-- [ ] WebTorrent multi-peer distribution
 
 ## Contributing
 
