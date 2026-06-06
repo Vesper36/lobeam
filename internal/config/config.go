@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -46,6 +48,19 @@ type Config struct {
 	TransferExpiry   time.Duration
 	MaxDownloads     int
 	AllowAnonymous   bool
+
+	// OIDC / SSO
+	OIDCProviders []OIDCProviderConfig
+}
+
+// OIDCProviderConfig holds configuration for a single OIDC provider
+type OIDCProviderConfig struct {
+	Name         string   `json:"name"`
+	DisplayName  string   `json:"display_name"`
+	Issuer       string   `json:"issuer"`
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"client_secret"`
+	Scopes       []string `json:"scopes"`
 }
 
 func Load() *Config {
@@ -89,6 +104,7 @@ func Load() *Config {
 		TransferExpiry: time.Duration(envInt("LOBEAM_TRANSFER_EXPIRY_HOURS", 24)) * time.Hour,
 		MaxDownloads:   envInt("LOBEAM_MAX_DOWNLOADS", 100),
 		AllowAnonymous: envBool("LOBEAM_ALLOW_ANONYMOUS", true),
+		OIDCProviders:  loadOIDCProviders(),
 	}
 }
 
@@ -115,4 +131,82 @@ func envBool(key string, fallback bool) bool {
 		}
 	}
 	return fallback
+}
+
+// loadOIDCProviders parses OIDC provider configuration from env vars.
+// Supports both:
+//   - LOBEAM_OIDC_CONFIG: JSON array of providers
+//   - Individual provider env vars: LOBEAM_OIDC_GOOGLE_ISSUER, LOBEAM_OIDC_GOOGLE_CLIENT_ID, etc.
+func loadOIDCProviders() []OIDCProviderConfig {
+	var providers []OIDCProviderConfig
+
+	// Method 1: JSON config
+	if cfg := os.Getenv("LOBEAM_OIDC_CONFIG"); cfg != "" {
+		var configs []OIDCProviderConfig
+		if err := json.Unmarshal([]byte(cfg), &configs); err == nil {
+			providers = append(providers, configs...)
+		}
+		return providers
+	}
+
+	// Method 2: Individual env vars per provider
+	// Pattern: LOBEAM_OIDC_{NAME}_{FIELD}
+	// Supported fields: ISSUER, CLIENT_ID, CLIENT_SECRET, DISPLAY_NAME, SCOPES
+	knownFields := map[string]bool{
+		"ISSUER": true, "CLIENT_ID": true, "CLIENT_SECRET": true, "DISPLAY_NAME": true, "SCOPES": true,
+	}
+
+	providerMap := make(map[string]*OIDCProviderConfig)
+	for _, env := range os.Environ() {
+		parts := splitN(env, "=", 2)
+		if len(parts) != 2 || !strings.HasPrefix(parts[0], "LOBEAM_OIDC_") {
+			continue
+		}
+		key := strings.TrimPrefix(parts[0], "LOBEAM_OIDC_")
+		underscoreIdx := strings.LastIndex(key, "_")
+		if underscoreIdx <= 0 {
+			continue
+		}
+		providerName := key[:underscoreIdx]
+		field := key[underscoreIdx+1:]
+		if !knownFields[field] {
+			continue
+		}
+
+		p, ok := providerMap[providerName]
+		if !ok {
+			p = &OIDCProviderConfig{Name: strings.ToLower(providerName)}
+			providerMap[providerName] = p
+		}
+		switch field {
+		case "ISSUER":
+			p.Issuer = parts[1]
+		case "CLIENT_ID":
+			p.ClientID = parts[1]
+		case "CLIENT_SECRET":
+			p.ClientSecret = parts[1]
+		case "DISPLAY_NAME":
+			p.DisplayName = parts[1]
+		case "SCOPES":
+			p.Scopes = strings.Split(parts[1], ",")
+		}
+	}
+
+	for _, p := range providerMap {
+		if p.Issuer != "" && p.ClientID != "" && p.ClientSecret != "" {
+			providers = append(providers, *p)
+		}
+	}
+	return providers
+}
+
+func splitN(s, sep string, n int) []string {
+	idx := strings.Index(s, sep)
+	if idx < 0 {
+		return []string{s}
+	}
+	if n == 2 {
+		return []string{s[:idx], s[idx+len(sep):]}
+	}
+	return strings.SplitN(s, sep, n)
 }

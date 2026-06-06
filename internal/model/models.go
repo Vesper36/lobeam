@@ -10,6 +10,9 @@ type User struct {
 	Role         string    `json:"role"` // admin, member, viewer
 	StorageUsed  int64     `json:"storage_used"`
 	StorageLimit int64     `json:"storage_limit"`
+	OIDCProvider string    `json:"oidc_provider,omitempty"`
+	OIDCSub      string    `json:"oidc_sub,omitempty"`
+	AvatarURL    string    `json:"avatar_url,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

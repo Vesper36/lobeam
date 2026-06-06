@@ -123,6 +123,11 @@ func (s *Service) GetUser(id int64) (*model.User, error) {
 	return s.db.GetUserByID(id)
 }
 
+// GenerateToken creates a JWT token for the given user with the specified expiry
+func (s *Service) GenerateToken(u *model.User, expiry time.Duration) (string, error) {
+	return s.generateToken(u, expiry)
+}
+
 func (s *Service) generateToken(u *model.User, expiry time.Duration) (string, error) {
 	claims := &Claims{
 		UserID:   u.ID,

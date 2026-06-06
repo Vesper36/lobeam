@@ -34,13 +34,18 @@ func (db *DB) migrate() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
 		email TEXT UNIQUE NOT NULL,
-		password_hash TEXT NOT NULL,
+		password_hash TEXT NOT NULL DEFAULT '',
 		role TEXT NOT NULL DEFAULT 'member',
 		storage_used INTEGER NOT NULL DEFAULT 0,
 		storage_limit INTEGER NOT NULL DEFAULT 0,
+		oidc_provider TEXT NOT NULL DEFAULT '',
+		oidc_sub TEXT NOT NULL DEFAULT '',
+		avatar_url TEXT NOT NULL DEFAULT '',
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc ON users(oidc_provider, oidc_sub) WHERE oidc_provider != '';
 
 	CREATE TABLE IF NOT EXISTS transfers (
 		id TEXT PRIMARY KEY,
@@ -519,9 +524,9 @@ func (db *DB) GetAuditLogs(limit, offset int) ([]*model.AuditLog, error) {
 
 func (db *DB) CreateUser(u *model.User) error {
 	res, err := db.conn.Exec(
-		`INSERT INTO users (username, email, password_hash, role, storage_limit)
-		 VALUES (?, ?, ?, ?, ?)`,
-		u.Username, u.Email, u.PasswordHash, u.Role, u.StorageLimit,
+		`INSERT INTO users (username, email, password_hash, role, storage_limit, oidc_provider, oidc_sub, avatar_url)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.Username, u.Email, u.PasswordHash, u.Role, u.StorageLimit, u.OIDCProvider, u.OIDCSub, u.AvatarURL,
 	)
 	if err != nil {
 		return err
@@ -533,8 +538,8 @@ func (db *DB) CreateUser(u *model.User) error {
 func (db *DB) GetUserByID(id int64) (*model.User, error) {
 	u := &model.User{}
 	err := db.conn.QueryRow(
-		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, created_at, updated_at FROM users WHERE id = ?`, id,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, oidc_provider, oidc_sub, avatar_url, created_at, updated_at FROM users WHERE id = ?`, id,
+	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.OIDCProvider, &u.OIDCSub, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -544,8 +549,8 @@ func (db *DB) GetUserByID(id int64) (*model.User, error) {
 func (db *DB) GetUserByUsername(username string) (*model.User, error) {
 	u := &model.User{}
 	err := db.conn.QueryRow(
-		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, created_at, updated_at FROM users WHERE username = ?`, username,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, oidc_provider, oidc_sub, avatar_url, created_at, updated_at FROM users WHERE username = ?`, username,
+	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.OIDCProvider, &u.OIDCSub, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -555,8 +560,20 @@ func (db *DB) GetUserByUsername(username string) (*model.User, error) {
 func (db *DB) GetUserByEmail(email string) (*model.User, error) {
 	u := &model.User{}
 	err := db.conn.QueryRow(
-		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, created_at, updated_at FROM users WHERE email = ?`, email,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, oidc_provider, oidc_sub, avatar_url, created_at, updated_at FROM users WHERE email = ?`, email,
+	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.OIDCProvider, &u.OIDCSub, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// GetUserByOIDC finds a user by OIDC provider and subject ID
+func (db *DB) GetUserByOIDC(provider, sub string) (*model.User, error) {
+	u := &model.User{}
+	err := db.conn.QueryRow(
+		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, oidc_provider, oidc_sub, avatar_url, created_at, updated_at FROM users WHERE oidc_provider = ? AND oidc_sub = ?`, provider, sub,
+	).Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.OIDCProvider, &u.OIDCSub, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -565,7 +582,7 @@ func (db *DB) GetUserByEmail(email string) (*model.User, error) {
 
 func (db *DB) ListUsers(limit, offset int) ([]*model.User, error) {
 	rows, err := db.conn.Query(
-		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+		`SELECT id, username, email, password_hash, role, storage_used, storage_limit, oidc_provider, oidc_sub, avatar_url, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`,
 		limit, offset,
 	)
 	if err != nil {
@@ -576,7 +593,7 @@ func (db *DB) ListUsers(limit, offset int) ([]*model.User, error) {
 	var users []*model.User
 	for rows.Next() {
 		u := &model.User{}
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Role, &u.StorageUsed, &u.StorageLimit, &u.OIDCProvider, &u.OIDCSub, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -601,6 +618,15 @@ func (db *DB) UpdateUserStorageLimit(id int64, limit int64) error {
 
 func (db *DB) DeleteUser(id int64) error {
 	_, err := db.conn.Exec(`DELETE FROM users WHERE id = ?`, id)
+	return err
+}
+
+// LinkUserOIDC associates an existing user with an OIDC provider
+func (db *DB) LinkUserOIDC(userID int64, provider, sub, avatarURL string) error {
+	_, err := db.conn.Exec(
+		`UPDATE users SET oidc_provider = ?, oidc_sub = ?, avatar_url = CASE WHEN ? != '' THEN ? ELSE avatar_url END, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		provider, sub, avatarURL, avatarURL, userID,
+	)
 	return err
 }
 

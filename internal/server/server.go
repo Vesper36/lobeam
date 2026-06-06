@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/vesper/lobeam/internal/config"
 	"github.com/vesper/lobeam/internal/db"
 	"github.com/vesper/lobeam/internal/notify"
+	"github.com/vesper/lobeam/internal/oidc"
 	"github.com/vesper/lobeam/internal/storage"
 	"github.com/vesper/lobeam/internal/user"
 )
@@ -31,6 +33,8 @@ type Server struct {
 	notify    *notify.Service
 	hub       *WSHub
 	staticFS  fs.FS
+	oidcMgr   *oidc.Manager
+	oidcStates sync.Map // state -> oidcStateEntry
 }
 
 func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user.Service, notif *notify.Service, staticFS fs.FS) *Server {
@@ -43,6 +47,25 @@ func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user
 		hub:      NewWSHub(),
 		staticFS: staticFS,
 	}
+
+	// Initialize OIDC manager if providers configured
+	if len(cfg.OIDCProviders) > 0 {
+		mgr := oidc.NewManager(cfg.PublicURL)
+		for _, p := range cfg.OIDCProviders {
+			if err := mgr.AddProvider(oidc.ProviderConfig{
+				Name:         p.Name,
+				DisplayName:  p.DisplayName,
+				Issuer:       p.Issuer,
+				ClientID:     p.ClientID,
+				ClientSecret: p.ClientSecret,
+				Scopes:       p.Scopes,
+			}); err != nil {
+				fmt.Printf("Warning: failed to add OIDC provider %s: %v\n", p.Name, err)
+			}
+		}
+		s.oidcMgr = mgr
+	}
+
 	go s.hub.Run()
 	return s
 }
@@ -73,6 +96,11 @@ func (s *Server) Router() http.Handler {
 		r.Post("/auth/register", s.handleRegister)
 		r.Post("/auth/login", s.handleLogin)
 		r.Post("/auth/refresh", s.handleRefresh)
+
+		// OIDC / SSO
+		r.Get("/auth/oidc/providers", s.handleOIDCProviders)
+		r.Get("/auth/oidc/{provider}", s.handleOIDCRedirect)
+		r.Get("/auth/oidc/{provider}/callback", s.handleOIDCCallback)
 
 		r.Get("/t/{id}", s.handleGetTransfer)
 		r.Get("/t/{id}/files", s.handleGetTransferFiles)
