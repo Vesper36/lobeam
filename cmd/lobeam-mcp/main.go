@@ -10,9 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/coder/websocket"
 )
 
 // LoBeam MCP Server — lets Claude, Cursor, and other AI tools
@@ -524,7 +521,3 @@ func writeToolError(w *bufio.Writer, id interface{}, text string) {
 		"isError": true,
 	})
 }
-
-// Silence unused import warnings
-var _ = websocket.StatusNormalClosure
-var _ = time.Now

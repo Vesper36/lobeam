@@ -328,6 +328,19 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Encrypted", strconv.FormatBool(t.Encrypted))
 	w.Header().Set("Accept-Ranges", "bytes")
 
+	// Increment download count before streaming to prevent TOCTOU race
+	s.db.IncrementDownload(transferID)
+	s.db.CreateAuditLog(t.UserID, "download", "transfer", fmt.Sprintf("Downloaded file %s from transfer %s", f.Name, transferID), r.RemoteAddr)
+	s.hub.BroadcastToRoom(transferID, "download", map[string]interface{}{
+		"file":     f.Name,
+		"file_id":  f.ID,
+		"download": t.DownloadCount + 1,
+		"max":      t.MaxDownloads,
+	})
+	if t.SenderEmail != "" && s.notify != nil {
+		go s.notify.SendDownloadNotification(t.SenderEmail, transferID, f.Name)
+	}
+
 	// Handle HTTP Range for resumeable downloads
 	if rangeHdr := r.Header.Get("Range"); rangeHdr != "" && !t.Encrypted {
 		s.serveRange(w, r, f, chunks, rangeHdr)
@@ -342,24 +355,6 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 		}
 		io.Copy(w, reader)
 		reader.Close()
-	}
-
-	s.db.IncrementDownload(transferID)
-
-	// Audit log
-	s.db.CreateAuditLog(t.UserID, "download", "transfer", fmt.Sprintf("Downloaded file %s from transfer %s", f.Name, transferID), r.RemoteAddr)
-
-	// Notify via WebSocket if sender is connected
-	s.hub.BroadcastToRoom(transferID, "download", map[string]interface{}{
-		"file":     f.Name,
-		"file_id":  f.ID,
-		"download": t.DownloadCount + 1,
-		"max":      t.MaxDownloads,
-	})
-
-	// Auto-send download notification email if sender_email set
-	if t.SenderEmail != "" && s.notify != nil {
-		go s.notify.SendDownloadNotification(t.SenderEmail, transferID, f.Name)
 	}
 }
 

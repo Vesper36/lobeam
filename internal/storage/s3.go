@@ -139,11 +139,3 @@ func (s *S3Store) Delete(key string) error {
 	}
 	return nil
 }
-
-func (s *S3Store) Exists(key string) bool {
-	_, err := s.client.HeadObject(context.TODO(), &s3.HeadObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(s.objectKey(key)),
-	})
-	return err == nil
-}

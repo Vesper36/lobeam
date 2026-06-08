@@ -112,8 +112,8 @@ func (s *Server) Router() http.Handler {
 		// Brand (public, loaded for UI customization)
 		r.Get("/brand", s.handleGetBrand)
 
-		r.Post("/auth/register", s.handleRegister)
-		r.Post("/auth/login", s.handleLogin)
+		r.Post("/auth/register", s.rateLimitMiddleware(5, s.handleRegister))
+		r.Post("/auth/login", s.rateLimitMiddleware(10, s.handleLogin))
 		r.Post("/auth/refresh", s.handleRefresh)
 
 		// OIDC / SSO

@@ -81,15 +81,36 @@ func Load() *Config {
 
 	_ = os.MkdirAll(dataDir, 0755)
 
+	port := envInt("LOBEAM_PORT", 50030)
+	if port < 1 || port > 65535 {
+		port = 50030
+	}
+	maxChunkMB := envInt("LOBEAM_MAX_CHUNK_MB", 5)
+	if maxChunkMB <= 0 {
+		maxChunkMB = 5
+	}
+	transferExpiryHours := envInt("LOBEAM_TRANSFER_EXPIRY_HOURS", 24)
+	if transferExpiryHours <= 0 {
+		transferExpiryHours = 24
+	}
+	maxDownloads := envInt("LOBEAM_MAX_DOWNLOADS", 100)
+	if maxDownloads < 0 {
+		maxDownloads = 100
+	}
+	storageType := envStr("LOBEAM_STORAGE_TYPE", "local")
+	if storageType != "local" && storageType != "s3" {
+		storageType = "local"
+	}
+
 	return &Config{
 		Host:         envStr("LOBEAM_HOST", "0.0.0.0"),
-		Port:         envInt("LOBEAM_PORT", 50030),
+		Port:         port,
 		PublicURL:    envStr("LOBEAM_PUBLIC_URL", "http://localhost:50030"),
 		DataDir:      dataDir,
 
 		DBPath: dbPath,
 
-		StorageType: envStr("LOBEAM_STORAGE_TYPE", "local"),
+		StorageType: storageType,
 		MaxFileSize: int64(envInt("LOBEAM_MAX_FILE_SIZE", 0)),
 
 		S3Endpoint:  envStr("LOBEAM_S3_ENDPOINT", ""),
@@ -120,9 +141,9 @@ func Load() *Config {
 		TURNUser:   envStr("LOBEAM_TURN_USER", ""),
 		TURNPass:   envStr("LOBEAM_TURN_PASS", ""),
 
-		MaxChunkSize:   int64(envInt("LOBEAM_MAX_CHUNK_MB", 5)) * 1024 * 1024,
-		TransferExpiry: time.Duration(envInt("LOBEAM_TRANSFER_EXPIRY_HOURS", 24)) * time.Hour,
-		MaxDownloads:   envInt("LOBEAM_MAX_DOWNLOADS", 100),
+		MaxChunkSize:   int64(maxChunkMB) * 1024 * 1024,
+		TransferExpiry: time.Duration(transferExpiryHours) * time.Hour,
+		MaxDownloads:   maxDownloads,
 		AllowAnonymous: envBool("LOBEAM_ALLOW_ANONYMOUS", true),
 		OIDCProviders:  loadOIDCProviders(),
 

@@ -17,8 +17,6 @@ type Store interface {
 	Get(key string) (io.ReadCloser, error)
 	// Delete removes the object at the given key
 	Delete(key string) error
-	// Exists checks if the key exists
-	Exists(key string) bool
 }
 
 // LocalStore implements Store using the local filesystem
@@ -66,10 +64,4 @@ func (s *LocalStore) Get(key string) (io.ReadCloser, error) {
 func (s *LocalStore) Delete(key string) error {
 	path := filepath.Join(s.BasePath, key)
 	return os.Remove(path)
-}
-
-func (s *LocalStore) Exists(key string) bool {
-	path := filepath.Join(s.BasePath, key)
-	_, err := os.Stat(path)
-	return err == nil
 }
