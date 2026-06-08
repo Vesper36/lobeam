@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/vesper/lobeam/internal/model"
 )
@@ -149,7 +148,7 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t := &model.Transfer{
-		ID:            uuid.New().String()[:8],
+		ID:            uuid.New().String()[:12],
 		UserID:        int64Ptr(getUserID(r)),
 		Name:          req.Name,
 		Mode:          "link",
@@ -170,10 +169,6 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create transfer: "+err.Error())
 		return
 	}
-
-	// Create transfer directory
-	transferDir := filepath.Join(s.cfg.DataDir, "transfers", t.ID)
-	os.MkdirAll(transferDir, 0755)
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"transfer_id":  t.ID,
@@ -209,7 +204,7 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 
 	// Create file record if first chunk
 	if fileID == "" || fileID == "null" {
-		fileID = uuid.New().String()[:12]
+		fileID = uuid.New().String()[:16]
 		f := &model.File{
 			ID:         fileID,
 			TransferID: transferID,
@@ -235,13 +230,17 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read chunk data
-	body, err := io.ReadAll(r.Body)
+	// Read chunk data with size limit to prevent OOM
+	body, err := io.ReadAll(io.LimitReader(r.Body, s.cfg.MaxChunkSize+1))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to read chunk")
 		return
 	}
 	defer r.Body.Close()
+	if s.cfg.MaxChunkSize > 0 && int64(len(body)) > s.cfg.MaxChunkSize {
+		writeError(w, http.StatusRequestEntityTooLarge, "chunk exceeds maximum size")
+		return
+	}
 
 	// Verify hash if provided
 	if chunkSHA256 != "" {
@@ -262,7 +261,7 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 
 	// Create chunk record
 	chunk := &model.Chunk{
-		ID:         uuid.New().String()[:12],
+		ID:         uuid.New().String()[:16],
 		FileID:     fileID,
 		Index:      chunkIndex,
 		Size:       int64(len(body)),
@@ -375,7 +374,10 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	if isPreviewableMIME(f.MimeType) || isPreviewableExt(f.Name) {
 		disposition = "inline"
 	}
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, f.Name))
+	safeName := strings.ReplaceAll(f.Name, "\"", "_")
+	safeName = strings.ReplaceAll(safeName, "\n", "_")
+	safeName = strings.ReplaceAll(safeName, "\r", "_")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, safeName))
 	w.Header().Set("Content-Type", f.MimeType)
 	w.Header().Set("Content-Length", strconv.FormatInt(f.Size, 10))
 	w.Header().Set("X-File-Name", f.Name)
@@ -441,7 +443,7 @@ func (s *Server) handleCreateClipboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entry := &model.ClipboardEntry{
-		ID:        uuid.New().String()[:8],
+		ID:        uuid.New().String()[:12],
 		UserID:    int64Ptr(getUserID(r)),
 		Content:   req.Content,
 		Language:  req.Language,
@@ -479,7 +481,7 @@ func (s *Server) handleGetClipboard(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateP2P(w http.ResponseWriter, r *http.Request) {
 	code := generateCode(6)
 	session := &model.P2PSession{
-		ID:        uuid.New().String()[:8],
+		ID:        uuid.New().String()[:12],
 		Code:      code,
 		CreatorID: int64Ptr(getUserID(r)),
 		Status:    "waiting",
@@ -652,8 +654,16 @@ func int64Ptr(v int64) *int64 {
 }
 
 func hashPassword(password string) string {
-	h := sha256.Sum256([]byte(password))
-	return hex.EncodeToString(h[:])
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		// Fallback should never happen, but log and return empty to surface the error
+		return ""
+	}
+	return string(hash)
+}
+
+func verifyPassword(password, hash string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
 func generateCode(length int) string {
@@ -759,6 +769,7 @@ func (s *Server) serveRange(w http.ResponseWriter, r *http.Request, file *model.
 	w.WriteHeader(http.StatusPartialContent)
 
 	var written int64
+	flusher, canFlush := w.(http.Flusher)
 	for _, c := range chunks {
 		if written >= length {
 			break
@@ -767,27 +778,31 @@ func (s *Server) serveRange(w http.ResponseWriter, r *http.Request, file *model.
 		if err != nil {
 			return
 		}
-		data, _ := io.ReadAll(rd)
+		// Skip chunks before the start offset
+		if start > 0 {
+			if start < c.Size {
+				skipped, _ := io.CopyN(io.Discard, rd, start)
+				start -= skipped
+			} else {
+				start -= c.Size
+				rd.Close()
+				continue
+			}
+		}
+		// Write the relevant portion of this chunk
+		toWrite := c.Size - start
+		if toWrite > length-written {
+			toWrite = length - written
+		}
+		n, err := io.CopyN(w, rd, toWrite)
+		written += n
 		rd.Close()
-		cs := int64(len(data))
-		if start >= cs {
-			start -= cs
-			end -= cs
-			continue
+		if err != nil {
+			return
 		}
-		chunkStart := start
-		if chunkStart < 0 {
-			chunkStart = 0
-		}
-		chunkEnd := cs - 1
-		if end < chunkEnd {
-			chunkEnd = end
-		}
-		if chunkStart < cs {
-			n, _ := w.Write(data[chunkStart : chunkEnd+1])
-			written += int64(n)
+		if canFlush {
+			flusher.Flush()
 		}
 		start = 0
-		end -= cs
 	}
 }

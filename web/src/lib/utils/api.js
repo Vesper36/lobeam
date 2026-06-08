@@ -1,5 +1,6 @@
 const API_BASE = '/api';
 const CHUNK_SIZE = 5 * 1024 * 1024;
+let refreshing = null;
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('access_token');
@@ -15,7 +16,19 @@ async function request(path, options = {}) {
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-  if (res.status === 401) {
+  if (res.status === 401 && !options._retry) {
+    // Try to refresh the token
+    const newToken = await tryRefreshToken();
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
+      return fetch(`${API_BASE}${path}`, { ...options, headers }).then(r => {
+        if (!r.ok) {
+          const err = r.json().catch(() => ({ error: 'Request failed' }));
+          return err.then(e => { throw new Error(e.error || 'Request failed'); });
+        }
+        return r.json();
+      });
+    }
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     throw new Error('unauthorized');
@@ -27,6 +40,31 @@ async function request(path, options = {}) {
   }
 
   return res.json();
+}
+
+async function tryRefreshToken() {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+  // Prevent concurrent refresh attempts
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      localStorage.setItem('access_token', data.access_token);
+      return data.access_token;
+    } catch {
+      return null;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
 }
 
 async function sha256Hex(buffer) {

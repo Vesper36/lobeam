@@ -65,8 +65,11 @@ func (h *WSHub) Run() {
 			h.mu.Unlock()
 
 		case msg := <-h.broadcast:
-			data, _ := json.Marshal(msg)
-			h.mu.RLock()
+			data, err := json.Marshal(msg)
+			if err != nil {
+				continue
+			}
+			h.mu.Lock()
 			if clients, ok := h.clients[msg.Room]; ok {
 				for client := range clients {
 					select {
@@ -77,7 +80,7 @@ func (h *WSHub) Run() {
 					}
 				}
 			}
-			h.mu.RUnlock()
+			h.mu.Unlock()
 		}
 	}
 }

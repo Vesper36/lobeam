@@ -37,10 +37,7 @@ func (db *DB) GetDefaultBrand() (*model.Brand, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Create default brand
-			_, err = db.conn.Exec(`INSERT INTO settings DEFAULT VALUES`)
-			if err != nil {
-				_, _ = db.conn.Exec(`INSERT INTO brands (domain, name) VALUES (NULL, 'LoBeam')`)
-			}
+			_, _ = db.conn.Exec(`INSERT INTO brands (domain, name) VALUES (NULL, 'LoBeam')`)
 			return &model.Brand{
 				Name:                "LoBeam",
 				PrimaryColor:        "#7c3aed",

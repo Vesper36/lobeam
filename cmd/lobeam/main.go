@@ -19,6 +19,10 @@ var staticEmbed embed.FS
 func main() {
 	cfg := config.Load()
 
+	if cfg.JWTSecret == "change-me-in-production" {
+		log.Println("WARNING: Using default JWT secret. Set LOBEAM_JWT_SECRET for production use.")
+	}
+
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}

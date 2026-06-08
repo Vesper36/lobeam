@@ -916,7 +916,7 @@ func (s *Server) handleVerifyFolderPassword(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if hashPassword(req.Password) != folder.PasswordHash {
+	if !verifyPassword(req.Password, folder.PasswordHash) {
 		writeError(w, http.StatusUnauthorized, "incorrect password")
 		return
 	}
