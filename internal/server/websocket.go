@@ -25,6 +25,7 @@ type WSClient struct {
 	room   string
 	send   chan []byte
 	userID int64
+	ctx    context.Context
 }
 
 type WSMessage struct {
@@ -111,6 +112,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		conn: conn,
 		room: room,
 		send: make(chan []byte, 256),
+		ctx:  r.Context(),
 	}
 
 	s.hub.register <- client
@@ -153,7 +155,7 @@ func (c *WSClient) readPump() {
 	}()
 
 	for {
-		_, data, err := c.conn.Read(context.Background())
+		_, data, err := c.conn.Read(c.ctx)
 		if err != nil {
 			break
 		}
@@ -173,7 +175,7 @@ func (c *WSClient) writePump() {
 	defer c.conn.Close(websocket.StatusNormalClosure, "")
 
 	for data := range c.send {
-		if err := c.conn.Write(context.Background(), websocket.MessageText, data); err != nil {
+		if err := c.conn.Write(c.ctx, websocket.MessageText, data); err != nil {
 			break
 		}
 	}
