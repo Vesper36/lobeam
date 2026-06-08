@@ -18,9 +18,11 @@ RUN CGO_ENABLED=1 GOTOOLCHAIN=auto go build -ldflags="-s -w" -o /lobeam ./cmd/lo
 
 # Runtime
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates sqlite
+RUN apk add --no-cache ca-certificates sqlite \
+    && addgroup -S lobeam && adduser -S lobeam -G lobeam
 COPY --from=backend /lobeam /usr/local/bin/lobeam
 
+RUN mkdir -p /data && chown lobeam:lobeam /data
 VOLUME /data
 ENV LOBEAM_DATA_DIR=/data
 ENV LOBEAM_DB_PATH=/data/lobeam.db
@@ -29,4 +31,5 @@ ENV LOBEAM_PORT=50030
 
 EXPOSE 50030
 
+USER lobeam
 ENTRYPOINT ["lobeam"]

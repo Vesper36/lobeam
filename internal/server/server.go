@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -63,7 +64,7 @@ func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user
 				ClientSecret: p.ClientSecret,
 				Scopes:       p.Scopes,
 			}); err != nil {
-				fmt.Printf("Warning: failed to add OIDC provider %s: %v\n", p.Name, err)
+				slog.Warn("failed to add OIDC provider", "provider", p.Name, "error", err)
 			}
 		}
 		s.oidcMgr = mgr
@@ -98,6 +99,21 @@ func (s *Server) Router() http.Handler {
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.Timeout(0))
 	r.Use(chiMiddleware.Compress(5, "text/html", "application/json", "text/css", "application/javascript"))
+
+	// Security headers
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -231,53 +247,55 @@ func (s *Server) serveSPA() http.HandlerFunc {
 			return
 		}
 
-		// Try to serve static file
-		if s.staticFS != nil {
-			// Remove leading slash
-			filePath := strings.TrimPrefix(path, "/")
-			if filePath == "" {
-				filePath = "index.html"
-			}
+		if s.staticFS == nil {
+			http.NotFound(w, r)
+			return
+		}
 
-			f, err := s.staticFS.Open(filePath)
-			if err == nil {
-				f.Close()
-				// Set correct content type
-				contentType := "text/html"
-				if strings.HasSuffix(filePath, ".js") {
-					contentType = "application/javascript"
-				} else if strings.HasSuffix(filePath, ".css") {
-					contentType = "text/css"
-				} else if strings.HasSuffix(filePath, ".svg") {
-					contentType = "image/svg+xml"
-				} else if strings.HasSuffix(filePath, ".png") {
-					contentType = "image/png"
-				} else if strings.HasSuffix(filePath, ".ico") {
-					contentType = "image/x-icon"
-				} else if strings.HasSuffix(filePath, ".json") {
-					contentType = "application/json"
-				} else if strings.HasSuffix(filePath, ".woff2") {
-					contentType = "font/woff2"
-				}
-				w.Header().Set("Content-Type", contentType)
-				w.Header().Set("Cache-Control", "public, max-age=3600")
-				http.FileServer(http.FS(s.staticFS)).ServeHTTP(w, r)
-				return
+		// Remove leading slash
+		filePath := strings.TrimPrefix(path, "/")
+		if filePath == "" {
+			filePath = "index.html"
+		}
+
+		// Try to serve static file
+		f, err := s.staticFS.Open(filePath)
+		if err == nil {
+			f.Close()
+			// Set correct content type
+			contentType := "text/html"
+			switch {
+			case strings.HasSuffix(filePath, ".js"):
+				contentType = "application/javascript"
+			case strings.HasSuffix(filePath, ".css"):
+				contentType = "text/css"
+			case strings.HasSuffix(filePath, ".svg"):
+				contentType = "image/svg+xml"
+			case strings.HasSuffix(filePath, ".png"):
+				contentType = "image/png"
+			case strings.HasSuffix(filePath, ".ico"):
+				contentType = "image/x-icon"
+			case strings.HasSuffix(filePath, ".json"):
+				contentType = "application/json"
+			case strings.HasSuffix(filePath, ".woff2"):
+				contentType = "font/woff2"
 			}
+			w.Header().Set("Content-Type", contentType)
+			// Immutable assets (contain hash in path) get long cache,
+			// index.html and other root files get no cache
+			if strings.Contains(filePath, "/immutable/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
+			}
+			http.FileServer(http.FS(s.staticFS)).ServeHTTP(w, r)
+			return
 		}
 
 		// Fallback to index.html for SPA routing
-		if s.staticFS != nil {
-			f, err := s.staticFS.Open("index.html")
-			if err == nil {
-				f.Close()
-				w.Header().Set("Content-Type", "text/html")
-				http.ServeFileFS(w, r, s.staticFS, "index.html")
-				return
-			}
-		}
-
-		http.NotFound(w, r)
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
+		http.ServeFileFS(w, r, s.staticFS, "index.html")
 	}
 }
 
@@ -296,23 +314,15 @@ func (s *Server) Start() error {
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
-			s.db.DeleteExpiredTransfers()
+			n, _ := s.db.DeleteExpiredTransfers()
 			s.db.CleanupExpired()
+			if n > 0 {
+				slog.Info("cleanup: expired transfers removed", "count", n)
+			}
 		}
 	}()
 
-	fmt.Printf(`
- __    __   _______  __       __
-|  |  |  | |   ____||  |     |  |
-|  |_|  | |  |__   |  |     |  |
-|       | |   __|  |  |     |  |
-|       | |  |____ |  `+"`"+`----.|  `+"`"+`----.
-|___|___| |_______||_______||_______|
-
-  LoBeam - Large Object Beam
-  Server starting on %s
-  Public URL: %s
-`, addr, s.cfg.PublicURL)
+	slog.Info("LoBeam server starting", "addr", addr, "public_url", s.cfg.PublicURL)
 
 	srv := &http.Server{
 		Addr:         addr,
@@ -328,12 +338,12 @@ func (s *Server) Start() error {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+			slog.Error("server error", "error", err)
 		}
 	}()
 
 	<-stop
-	fmt.Println("\nShutting down gracefully...")
+	slog.Info("shutting down gracefully")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(ctx)

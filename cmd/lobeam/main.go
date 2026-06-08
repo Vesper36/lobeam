@@ -2,7 +2,7 @@ package main
 
 import (
 	"embed"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/vesper/lobeam/internal/config"
@@ -17,19 +17,26 @@ import (
 var staticEmbed embed.FS
 
 func main() {
+	// Configure structured logging
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	cfg := config.Load()
 
 	if cfg.JWTSecret == "change-me-in-production" {
-		log.Println("WARNING: Using default JWT secret. Set LOBEAM_JWT_SECRET for production use.")
+		slog.Warn("using default JWT secret -- set LOBEAM_JWT_SECRET for production")
 	}
 
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-		log.Fatalf("Failed to create data directory: %v", err)
+		slog.Error("failed to create data directory", "error", err)
+		os.Exit(1)
 	}
 
 	database, err := db.New(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("failed to initialize database", "error", err)
+		os.Exit(1)
 	}
 	defer database.Close()
 
@@ -50,16 +57,19 @@ func main() {
 			UseSSL:          cfg.S3UseSSL,
 		})
 		if err != nil {
-			log.Fatalf("Failed to initialize S3 storage: %v", err)
+			slog.Error("failed to initialize S3 storage", "error", err)
+			os.Exit(1)
 		}
 		store = s3Store
-		log.Printf("Using S3 storage: bucket=%s endpoint=%s", cfg.S3Bucket, cfg.S3Endpoint)
+		slog.Info("using S3 storage", "bucket", cfg.S3Bucket, "endpoint", cfg.S3Endpoint)
 	default:
 		localStore, err := storage.NewLocalStore(cfg.DataDir + "/transfers")
 		if err != nil {
-			log.Fatalf("Failed to initialize storage: %v", err)
+			slog.Error("failed to initialize storage", "error", err)
+			os.Exit(1)
 		}
 		store = localStore
+		slog.Info("using local storage", "path", cfg.DataDir+"/transfers")
 	}
 
 	userSvc := user.NewService(database, cfg.JWTSecret, cfg.JWTExpiry, cfg.RefreshExpiry)
@@ -69,8 +79,8 @@ func main() {
 
 	srv := server.New(cfg, database, store, userSvc, notifSvc, staticFS)
 
-	log.Println("Starting LoBeam server...")
 	if err := srv.Start(); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }

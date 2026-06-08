@@ -1,0 +1,14 @@
+node_modules
+web/node_modules
+web/.svelte-kit
+dist
+data
+*.db
+.git
+.gitignore
+README.md
+LICENSE
+docs
+examples
+mimo
+mimo-cli
