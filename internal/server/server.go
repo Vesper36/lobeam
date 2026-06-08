@@ -19,6 +19,7 @@ import (
 
 	"github.com/vesper/lobeam/internal/config"
 	"github.com/vesper/lobeam/internal/db"
+	"github.com/vesper/lobeam/internal/integrations"
 	"github.com/vesper/lobeam/internal/notify"
 	"github.com/vesper/lobeam/internal/oidc"
 	"github.com/vesper/lobeam/internal/storage"
@@ -31,6 +32,7 @@ type Server struct {
 	store      storage.Store
 	userSvc    *user.Service
 	notify     *notify.Service
+	intSvc     *integrations.Service
 	hub        *WSHub
 	staticFS   fs.FS
 	oidcMgr    *oidc.Manager
@@ -44,6 +46,7 @@ func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user
 		store:    store,
 		userSvc:  userSvc,
 		notify:   notif,
+		intSvc:   integrations.NewService(cfg.SlackWebhookURL, cfg.ZoomWebhookURL, cfg.GoogleWebhookURL, cfg.PublicURL),
 		hub:      NewWSHub(),
 		staticFS: staticFS,
 	}
@@ -107,6 +110,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Post("/t/{id}/download/{fileID}", s.handleDownloadFile)
 		r.Post("/t/{id}/email", s.handleEmailTransfer)
+		r.Post("/t/{id}/share/{platform}", s.handleShareTransfer)
 		r.Put("/t/{id}/magnet", s.handleUpdateMagnet)
 		r.Get("/clipboard/{id}", s.handleGetClipboard)
 		r.Post("/clipboard", s.handleCreateClipboard)
@@ -138,6 +142,12 @@ func (s *Server) Router() http.Handler {
 
 		// Settings (public read, auth to write)
 		r.Get("/settings", s.handleGetSettings)
+
+		// ICE config for WebRTC (TURN/STUN)
+		r.Get("/ice-config", s.handleGetICEConfig)
+
+		// Web folder password verification
+		r.Post("/f/{token}/verify", s.handleVerifyFolderPassword)
 
 		r.Get("/ws", s.handleWebSocket)
 

@@ -197,4 +197,15 @@ export const api = {
 
   // Profile
   getMe: () => request('/me'),
+
+  // ICE Config (TURN/STUN for WebRTC)
+  getICEConfig: () => request('/ice-config'),
+
+  // Web Folder password verification
+  verifyFolderPassword: (token, password) =>
+    request(`/f/${token}/verify`, { method: 'POST', body: { password } }),
+
+  // Integration share
+  shareTransfer: (id, platform, data = {}) =>
+    request(`/t/${id}/share/${platform}`, { method: 'POST', body: data }),
 };

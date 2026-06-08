@@ -524,7 +524,22 @@ func (s *Server) handleListTransfers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteTransfer(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	// TODO: delete files from storage
+
+	// Delete physical files from storage
+	if files, err := s.db.GetFilesByTransfer(id); err == nil {
+		for _, f := range files {
+			if chunks, err := s.db.GetChunksByFile(f.ID); err == nil {
+				for _, c := range chunks {
+					s.store.Delete(c.StorageKey)
+				}
+			}
+			// Also try storage_path for direct-stored files
+			if f.StoragePath != "" {
+				s.store.Delete(f.StoragePath)
+			}
+		}
+	}
+
 	s.db.UpdateTransferStatus(id, "expired")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -648,26 +663,42 @@ func generateCode(length int) string {
 
 // MIME types that browsers can preview inline
 var previewMIMETypes = map[string]bool{
-	"image/jpeg":       true,
-	"image/png":        true,
-	"image/gif":        true,
-	"image/webp":       true,
-	"image/svg+xml":    true,
-	"video/mp4":        true,
-	"video/webm":       true,
-	"video/ogg":        true,
-	"audio/mpeg":       true,
-	"audio/ogg":        true,
-	"audio/wav":        true,
-	"audio/webm":       true,
-	"application/pdf":  true,
-	"text/plain":       true,
-	"text/html":        true,
-	"text/css":         true,
-	"text/javascript":  true,
-	"text/csv":         true,
-	"application/json": true,
-	"application/xml":  true,
+	"image/jpeg":                 true,
+	"image/png":                  true,
+	"image/gif":                  true,
+	"image/webp":                 true,
+	"image/svg+xml":              true,
+	"video/mp4":                  true,
+	"video/webm":                 true,
+	"video/ogg":                  true,
+	"audio/mpeg":                 true,
+	"audio/ogg":                  true,
+	"audio/wav":                  true,
+	"audio/webm":                 true,
+	"application/pdf":            true,
+	"text/plain":                 true,
+	"text/html":                  true,
+	"text/css":                   true,
+	"text/javascript":            true,
+	"text/csv":                   true,
+	"application/json":           true,
+	"application/xml":            true,
+	"application/vnd.ms-excel":   true,
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true,
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true,
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation": true,
+	"application/msword":         true,
+	"application/vnd.ms-powerpoint": true,
+	"text/markdown":              true,
+	"text/x-python":              true,
+	"text/x-go":                  true,
+	"text/x-rust":                true,
+	"application/x-yaml":         true,
+	"text/yaml":                  true,
+	"text/x-c":                   true,
+	"text/x-c++":                 true,
+	"text/x-java":                true,
+	"text/x-sql":                 true,
 }
 
 var previewExtensions = map[string]bool{
@@ -676,6 +707,17 @@ var previewExtensions = map[string]bool{
 	".wav": true, ".pdf": true, ".txt": true, ".md": true, ".csv": true,
 	".json": true, ".xml": true, ".html": true, ".css": true, ".js": true,
 	".ico": true, ".bmp": true,
+	".xls": true, ".xlsx": true, ".ods": true,
+	".doc": true, ".docx": true, ".rtf": true, ".odt": true,
+	".ppt": true, ".pptx": true, ".odp": true,
+	".psd": true, ".ai": true, ".sketch": true, ".fig": true,
+	".py": true, ".go": true, ".rs": true, ".java": true, ".ts": true,
+	".jsx": true, ".tsx": true, ".yaml": true, ".yml": true, ".toml": true,
+	".sql": true, ".sh": true, ".bat": true, ".ini": true, ".cfg": true,
+	".conf": true, ".c": true, ".cpp": true, ".h": true, ".hpp": true,
+	".rb": true, ".php": true, ".swift": true, ".kt": true, ".dart": true,
+	".lua": true, ".r": true, ".log": true, ".ics": true, ".vcf": true,
+	".scss": true, ".less": true,
 }
 
 func isPreviewableMIME(mime string) bool {

@@ -59,11 +59,13 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 - **No File Size Limit** -- Send files of any size
 - **Real-time Progress** -- Upload speed, ETA, and percentage tracking
 - **Real-time Sharing** -- Start sharing before upload completes
+- **S3/MinIO Storage** -- Local filesystem or S3-compatible object storage backend
 
 ### Web Folders
 - **双向共享文件箱** -- Multiple users can upload and download
 - **Mode Control** -- `upload_only` (collect), `download_only` (distribute), or `both` (collaborate)
 - **Anonymous Access** -- No registration required, simple token-based URL
+- **Password Protection** -- Optional Argon2id password with server-side verification
 - **Password Protection** -- Optional Argon2id password for sensitive folders
 
 ### File Requests
@@ -101,9 +103,10 @@ The only self-hosted file transfer that combines **E2E encryption + P2P direct t
 ### Extra Tools
 - **Network Clipboard** -- Share text, code, notes via simple links
 - **P2P Transfer** -- 6-digit code pairing for direct browser-to-browser
-- **File Previews** -- Preview images, documents, media
+- **File Previews** -- Preview images, video, audio, documents, PDFs, Office files (Excel/Word/PPT), code, and design files
 - **QR Codes** -- Generate QR codes for mobile sharing
 - **Real-time Sharing** -- Start sharing before upload completes
+- **Platform Integrations** -- Share files to Slack, Zoom, and Google Chat via webhook
 
 ### Access Methods
 - **Browser UI** -- Drag and drop files, configure expiry/download limits, email recipients, and copy links.
@@ -203,6 +206,20 @@ chmod +x lobeam-cli
 | `LOBEAM_SMTP_USERNAME` | - | SMTP username |
 | `LOBEAM_SMTP_PASSWORD` | - | SMTP password |
 | `LOBEAM_SMTP_FROM` | - | Sender email address |
+| `LOBEAM_STORAGE_TYPE` | `local` | Storage backend: `local` or `s3` |
+| `LOBEAM_S3_ENDPOINT` | - | S3/MinIO endpoint (e.g. `s3.amazonaws.com`) |
+| `LOBEAM_S3_REGION` | `us-east-1` | S3 region |
+| `LOBEAM_S3_ACCESS_KEY` | - | S3 access key ID |
+| `LOBEAM_S3_SECRET_KEY` | - | S3 secret access key |
+| `LOBEAM_S3_BUCKET` | - | S3 bucket name |
+| `LOBEAM_S3_PREFIX` | - | Optional key prefix for S3 objects |
+| `LOBEAM_S3_USE_SSL` | `false` | Use HTTPS for S3 endpoint |
+| `LOBEAM_SLACK_WEBHOOK` | - | Slack incoming webhook URL for sharing |
+| `LOBEAM_ZOOM_WEBHOOK` | - | Zoom incoming webhook URL for sharing |
+| `LOBEAM_GOOGLE_WEBHOOK` | - | Google Chat webhook URL for sharing |
+| `LOBEAM_TURN_SERVER` | - | TURN server URL for WebRTC P2P |
+| `LOBEAM_TURN_USER` | - | TURN server username |
+| `LOBEAM_TURN_PASS` | - | TURN server credential |
 
 ## API
 
@@ -223,6 +240,9 @@ GET /api/t/{id}/download/{fileID}  # Supports HTTP Range for resumeable download
 # Email a transfer link
 POST /api/t/{id}/email
 
+# Share transfer to external platform
+POST /api/t/{id}/share/{platform}   # platform: slack, zoom, google
+
 # Upload (no auth required for anonymous)
 POST /api/upload/init               # Returns download_url immediately (real-time sharing)
 POST /api/upload/chunk              # Supports resume: sends resumed=true if chunk exists
@@ -241,7 +261,11 @@ GET /api/p2p/ws/{code}             # WebSocket for WebRTC signaling
 GET /api/f/{token}
 GET /api/f/{token}/files
 POST /api/f/{token}/upload
+POST /api/f/{token}/verify           # Verify folder password
 GET /api/f/{token}/download/{fileID}
+
+# ICE config for WebRTC (TURN/STUN)
+GET /api/ice-config
 
 # File requests
 GET /api/r/{id}

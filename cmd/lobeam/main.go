@@ -33,9 +33,29 @@ func main() {
 	database.GetSettings()
 	database.GetDefaultBrand()
 
-	store, err := storage.NewLocalStore(cfg.DataDir + "/transfers")
-	if err != nil {
-		log.Fatalf("Failed to initialize storage: %v", err)
+	var store storage.Store
+	switch cfg.StorageType {
+	case "s3":
+		s3Store, err := storage.NewS3Store(storage.S3Config{
+			Endpoint:        cfg.S3Endpoint,
+			Region:          cfg.S3Region,
+			AccessKeyID:     cfg.S3AccessKey,
+			SecretAccessKey: cfg.S3SecretKey,
+			Bucket:          cfg.S3Bucket,
+			Prefix:          cfg.S3Prefix,
+			UseSSL:          cfg.S3UseSSL,
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialize S3 storage: %v", err)
+		}
+		store = s3Store
+		log.Printf("Using S3 storage: bucket=%s endpoint=%s", cfg.S3Bucket, cfg.S3Endpoint)
+	default:
+		localStore, err := storage.NewLocalStore(cfg.DataDir + "/transfers")
+		if err != nil {
+			log.Fatalf("Failed to initialize storage: %v", err)
+		}
+		store = localStore
 	}
 
 	userSvc := user.NewService(database, cfg.JWTSecret, cfg.JWTExpiry, cfg.RefreshExpiry)

@@ -12,7 +12,8 @@
   let uploadProgress = $state({});
   let uploadFiles = $state([]);
   let password = $state('');
-  let showPassword = $state(false);
+  let passwordVerified = $state(false);
+  let passwordError = $state('');
   let showQr = $state(false);
   let copied = $state(false);
   let qrDataUrl = $state('');
@@ -82,6 +83,16 @@
     navigator.clipboard.writeText(`${window.location.origin}/f/${token}`);
     copied = true;
     setTimeout(() => copied = false, 2000);
+  }
+
+  async function verifyPassword() {
+    passwordError = '';
+    try {
+      await api.verifyFolderPassword(token, password);
+      passwordVerified = true;
+    } catch (err) {
+      passwordError = err.message || 'Incorrect password';
+    }
   }
 </script>
 
@@ -155,13 +166,18 @@
         <div class="p-6 border-b border-gray-800">
           <h3 class="text-sm font-medium mb-3">Upload files</h3>
 
-          {#if folder.password_hash && !showPassword}
+          {#if folder.password_hash && !passwordVerified}
             <div class="flex gap-2">
-              <input type="password" bind:value={password} placeholder="Enter folder password" class="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
-              <button onclick={() => showPassword = true} class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-sm font-medium transition-colors">
+              <input type="password" bind:value={password} placeholder="Enter folder password"
+                onkeydown={(e) => e.key === 'Enter' && verifyPassword()}
+                class="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+              <button onclick={verifyPassword} class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-sm font-medium transition-colors">
                 Unlock
               </button>
             </div>
+            {#if passwordError}
+              <p class="text-xs text-red-400 mt-2">{passwordError}</p>
+            {/if}
           {:else}
             <div
               class="border-2 border-dashed rounded-xl transition-all duration-200 {uploadFiles.length > 0 ? 'border-violet-400 bg-violet-500/5' : 'border-gray-700 hover:border-gray-600'}"

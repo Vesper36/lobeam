@@ -28,10 +28,17 @@
   let localVideoEl = $state(null);
   let remoteVideoEl = $state(null);
 
-  const ICE_SERVERS = [
+  let iceServers = $state([
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-  ];
+  ]);
+
+  // Fetch ICE config from server (includes TURN if configured)
+  $effect(() => {
+    api.getICEConfig().then(cfg => {
+      if (cfg.ice_servers?.length) iceServers = cfg.ice_servers;
+    }).catch(() => {});
+  });
 
   async function createSession() {
     loading = true;
@@ -101,7 +108,7 @@
   }
 
   function setupPeer() {
-    peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    peerConnection = new RTCPeerConnection({ iceServers });
 
     peerConnection.onicecandidate = (e) => {
       if (e.candidate) sendSignal(e.candidate);

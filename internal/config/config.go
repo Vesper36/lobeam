@@ -19,8 +19,15 @@ type Config struct {
 	DBPath string
 
 	// Storage
-	StorageType string // "local" or "s3"
-	MaxFileSize int64   // 0 = unlimited
+	StorageType    string // "local" or "s3"
+	MaxFileSize    int64  // 0 = unlimited
+	S3Endpoint     string
+	S3Region       string
+	S3AccessKey    string
+	S3SecretKey    string
+	S3Bucket       string
+	S3Prefix       string
+	S3UseSSL       bool
 
 	// Auth
 	JWTSecret        string
@@ -51,6 +58,11 @@ type Config struct {
 
 	// OIDC / SSO
 	OIDCProviders []OIDCProviderConfig
+
+	// Integrations
+	SlackWebhookURL   string
+	ZoomWebhookURL    string
+	GoogleWebhookURL  string
 }
 
 // OIDCProviderConfig holds configuration for a single OIDC provider
@@ -80,6 +92,14 @@ func Load() *Config {
 		StorageType: envStr("LOBEAM_STORAGE_TYPE", "local"),
 		MaxFileSize: int64(envInt("LOBEAM_MAX_FILE_SIZE", 0)),
 
+		S3Endpoint:  envStr("LOBEAM_S3_ENDPOINT", ""),
+		S3Region:    envStr("LOBEAM_S3_REGION", "us-east-1"),
+		S3AccessKey: envStr("LOBEAM_S3_ACCESS_KEY", ""),
+		S3SecretKey: envStr("LOBEAM_S3_SECRET_KEY", ""),
+		S3Bucket:    envStr("LOBEAM_S3_BUCKET", ""),
+		S3Prefix:    envStr("LOBEAM_S3_PREFIX", ""),
+		S3UseSSL:    envBool("LOBEAM_S3_USE_SSL", false),
+
 		JWTSecret:     envStr("LOBEAM_JWT_SECRET", "change-me-in-production"),
 		JWTExpiry:     time.Duration(envInt("LOBEAM_JWT_EXPIRY_HOURS", 24)) * time.Hour,
 		RefreshExpiry: time.Duration(envInt("LOBEAM_REFRESH_EXPIRY_DAYS", 30)) * 24 * time.Hour,
@@ -105,6 +125,10 @@ func Load() *Config {
 		MaxDownloads:   envInt("LOBEAM_MAX_DOWNLOADS", 100),
 		AllowAnonymous: envBool("LOBEAM_ALLOW_ANONYMOUS", true),
 		OIDCProviders:  loadOIDCProviders(),
+
+		SlackWebhookURL:  envStr("LOBEAM_SLACK_WEBHOOK", ""),
+		ZoomWebhookURL:   envStr("LOBEAM_ZOOM_WEBHOOK", ""),
+		GoogleWebhookURL: envStr("LOBEAM_GOOGLE_WEBHOOK", ""),
 	}
 }
 

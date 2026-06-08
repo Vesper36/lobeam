@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/vesper/lobeam/internal/integrations"
 	"github.com/vesper/lobeam/internal/model"
 )
 
@@ -869,6 +870,119 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s2)
+}
+
+// ---- ICE Config (TURN/STUN for WebRTC) ----
+
+func (s *Server) handleGetICEConfig(w http.ResponseWriter, r *http.Request) {
+	iceServers := []map[string]interface{}{
+		{"urls": s.cfg.STUNServers},
+	}
+	if s.cfg.TURNServer != "" {
+		server := s.cfg.TURNServer
+		if !strings.HasPrefix(server, "turn:") && !strings.HasPrefix(server, "turns:") {
+			server = "turn:" + server
+		}
+		entry := map[string]interface{}{
+			"urls":       []string{server},
+			"username":   s.cfg.TURNUser,
+			"credential": s.cfg.TURNPass,
+		}
+		iceServers = append(iceServers, entry)
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ice_servers": iceServers,
+	})
+}
+
+// ---- Web Folder Password Verification ----
+
+func (s *Server) handleVerifyFolderPassword(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	folder, err := s.db.GetWebFolderByToken(token)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "folder not found")
+		return
+	}
+	if folder.PasswordHash == "" {
+		writeJSON(w, http.StatusOK, map[string]bool{"verified": true})
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if hashPassword(req.Password) != folder.PasswordHash {
+		writeError(w, http.StatusUnauthorized, "incorrect password")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"verified": true})
+}
+
+// ---- Integration Share ----
+
+func (s *Server) handleShareTransfer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	platform := chi.URLParam(r, "platform")
+
+	transfer, err := s.db.GetTransfer(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "transfer not found")
+		return
+	}
+
+	files, _ := s.db.GetFilesByTransfer(id)
+	fileName := transfer.Name
+	var fileSize int64
+	if len(files) > 0 {
+		fileName = files[0].Name
+		fileSize = files[0].Size
+	}
+
+	var req struct {
+		Message    string `json:"message"`
+		SenderName string `json:"sender_name"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.SenderName == "" {
+		req.SenderName = "Someone"
+	}
+
+	payload := integrations.SharePayload{
+		TransferID:  id,
+		FileName:    fileName,
+		FileSize:    fileSize,
+		SenderName:  req.SenderName,
+		DownloadURL: fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, id),
+		Message:     req.Message,
+	}
+
+	var shareErr error
+	switch platform {
+	case "slack":
+		shareErr = s.intSvc.SendToSlack(payload)
+	case "zoom":
+		shareErr = s.intSvc.SendToZoom(payload)
+	case "google":
+		shareErr = s.intSvc.SendToGoogleWorkspace(payload)
+	default:
+		writeError(w, http.StatusBadRequest, "unsupported platform: "+platform)
+		return
+	}
+
+	if shareErr != nil {
+		writeError(w, http.StatusBadGateway, "failed to share: "+shareErr.Error())
+		return
+	}
+
+	s.db.CreateAuditLog(int64Ptr(getUserID(r)), "share", "transfer",
+		fmt.Sprintf("Shared transfer %s to %s", id, platform), r.RemoteAddr)
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "shared", "platform": platform})
 }
 
 // ---- Email (for transfer email) ----

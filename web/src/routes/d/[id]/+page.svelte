@@ -18,6 +18,9 @@
   let wsConnected = $state(false);
   let liveDownloadCount = $state(0);
   let p2pPeers = $state(0);
+  let textContent = $state('');
+  let textContentRef = $state(null);
+  let shareStatus = $state('');
 
   const transferId = $derived($page.params.id);
 
@@ -32,7 +35,6 @@
       liveDownloadCount = transfer.download_count;
       const url = `${window.location.origin}/d/${transferId}`;
       generateQR(url).then(u => qrDataUrl = u);
-      // Connect to WebSocket for live download updates
       connectWS(transferId);
     } catch (err) {
       error = err.message;
@@ -66,9 +68,15 @@
 
   function isPreviewable(file) {
     const previewTypes = ['image/', 'video/', 'audio/', 'text/', 'application/pdf'];
-    const previewExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.pdf', '.txt', '.md', '.csv', '.json', '.html', '.htm'];
+    const previewExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.pdf', '.txt', '.md', '.csv', '.json', '.html', '.htm',
+      '.xls', '.xlsx', '.doc', '.docx', '.ppt', '.pptx', '.rtf', '.odt', '.ods', '.odp',
+      '.psd', '.ai', '.sketch', '.fig',
+      '.py', '.go', '.rs', '.java', '.js', '.ts', '.jsx', '.tsx', '.css', '.scss',
+      '.yaml', '.yml', '.toml', '.xml', '.sql', '.sh', '.bat', '.ini', '.cfg', '.conf',
+      '.c', '.cpp', '.h', '.hpp', '.rb', '.php', '.swift', '.kt', '.dart', '.lua', '.r',
+      '.svg', '.ics', '.vcf', '.log'];
     if (transfer?.encrypted) return false;
-    if (file.size > 100 * 1024 * 1024) return false; // 100MB limit for preview
+    if (file.size > 100 * 1024 * 1024) return false;
     const name = file.name.toLowerCase();
     for (const ext of previewExts) {
       if (name.endsWith(ext)) return true;
@@ -88,7 +96,6 @@
     const name = file.name.toLowerCase();
     const mime = file.mime_type || '';
 
-    // Determine preview type
     if (name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/) || mime.startsWith('image/')) {
       preview = { type: 'image', url, name: file.name };
     } else if (name.match(/\.(mp4|webm|ogg|mov)$/) || mime.startsWith('video/')) {
@@ -97,11 +104,43 @@
       preview = { type: 'audio', url, name: file.name };
     } else if (name.endsWith('.pdf') || mime === 'application/pdf') {
       preview = { type: 'pdf', url, name: file.name };
-    } else if (name.match(/\.(txt|md|json|xml|html|htm|css|js|py|go|rs|yaml|yml|csv)$/) || mime.startsWith('text/')) {
+    } else if (name.match(/\.(xls|xlsx|ods)$/) || mime.includes('spreadsheet') || mime.includes('excel')) {
+      preview = { type: 'excel', url, name: file.name };
+    } else if (name.match(/\.(doc|docx|rtf|odt)$/) || mime.includes('word') || mime.includes('document')) {
+      preview = { type: 'word', url, name: file.name };
+    } else if (name.match(/\.(ppt|pptx|odp)$/) || mime.includes('presentation') || mime.includes('powerpoint')) {
+      preview = { type: 'powerpoint', url, name: file.name };
+    } else if (name.match(/\.(psd|ai|sketch|fig)$/) || mime.includes('photoshop')) {
+      preview = { type: 'design', url, name: file.name };
+    } else if (name.match(/\.(txt|md|json|xml|html|htm|css|js|ts|jsx|tsx|py|go|rs|java|yaml|yml|toml|sql|sh|bat|c|cpp|h|hpp|rb|php|swift|kt|dart|lua|r|ini|cfg|conf|log|csv|ics|vcf|svg)$/) || mime.startsWith('text/')) {
       preview = { type: 'text', url, name: file.name };
+      loadTextPreview(url);
     } else {
       preview = null;
     }
+  }
+
+  async function loadTextPreview(url) {
+    try {
+      const res = await fetch(url);
+      const text = await res.text();
+      textContent = text.slice(0, 50000);
+      if (textContentRef) textContentRef.textContent = textContent;
+    } catch {
+      textContent = 'Failed to load file content';
+    }
+  }
+
+  async function shareToPlatform(platform) {
+    shareStatus = '';
+    try {
+      const senderName = localStorage.getItem('username') || 'Someone';
+      await api.shareTransfer(transferId, platform, { sender_name: senderName });
+      shareStatus = `Shared to ${platform}`;
+    } catch (err) {
+      shareStatus = `Failed: ${err.message}`;
+    }
+    setTimeout(() => shareStatus = '', 3000);
   }
 
   async function downloadFile(file) {
@@ -109,7 +148,6 @@
     wtProgress = { ...wtProgress, [file.id]: { downloaded: 0, total: 0, speed: 0 } };
 
     try {
-      // Try WebTorrent P2P first if magnet URI is available
       if (transfer.magnet_uri && isWebTorrentSupported()) {
         try {
           const blob = await downloadViaMagnet(transfer.magnet_uri, (downloaded, total, speed) => {
@@ -123,12 +161,9 @@
           URL.revokeObjectURL(url);
           p2pPeers += 1;
           return;
-        } catch {
-          // P2P failed, fallback to HTTP
-        }
+        } catch {}
       }
 
-      // HTTP fallback
       const res = await fetch(`/api/t/${transferId}/download/${file.id}`, {
         method: 'GET',
         headers: password ? { 'X-Password': password } : {},
@@ -212,12 +247,27 @@
         </div>
 
         <!-- Share actions -->
-        <div class="flex items-center gap-2 mt-4">
+        <div class="flex items-center gap-2 mt-4 flex-wrap">
           <button onclick={copyLink} class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium transition-colors">
             {copied ? 'Copied!' : 'Copy link'}
           </button>
           {#if qrDataUrl}
             <img src={qrDataUrl} alt="QR" class="w-8 h-8 rounded bg-white p-0.5" />
+          {/if}
+          <!-- Integration share buttons -->
+          <div class="flex items-center gap-1 ml-2 border-l border-gray-700 pl-2">
+            <button onclick={() => shareToPlatform('slack')} class="px-2 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium transition-colors" title="Share to Slack">
+              Slack
+            </button>
+            <button onclick={() => shareToPlatform('zoom')} class="px-2 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium transition-colors" title="Share to Zoom">
+              Zoom
+            </button>
+            <button onclick={() => shareToPlatform('google')} class="px-2 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium transition-colors" title="Share to Google Chat">
+              Google
+            </button>
+          </div>
+          {#if shareStatus}
+            <span class="text-xs text-green-400">{shareStatus}</span>
           {/if}
         </div>
       </div>
@@ -251,7 +301,42 @@
             <iframe src={preview.url + '#toolbar=0'} title={preview.name} class="w-full h-96 border-0"></iframe>
           {:else if preview.type === 'text'}
             <div class="p-4 max-h-96 overflow-auto">
-              <pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap hidden" bind:this={textContentRef}></pre>
+              <pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap">{textContent}</pre>
+            </div>
+          {:else if preview.type === 'excel'}
+            <div class="p-8 text-center">
+              <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-green-500/10 flex items-center justify-center">
+                <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              </div>
+              <p class="text-sm text-gray-300 mb-2">{preview.name}</p>
+              <p class="text-xs text-gray-500 mb-4">Spreadsheet preview -- download to view in full</p>
+              <iframe src="https://view.officeapps.live.com/op/embed.aspx?src={encodeURIComponent(window.location.origin + preview.url)}" class="w-full h-96 border-0 rounded-lg bg-white" title={preview.name}></iframe>
+            </div>
+          {:else if preview.type === 'word'}
+            <div class="p-8 text-center">
+              <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              </div>
+              <p class="text-sm text-gray-300 mb-2">{preview.name}</p>
+              <p class="text-xs text-gray-500 mb-4">Document preview -- download to view in full</p>
+              <iframe src="https://view.officeapps.live.com/op/embed.aspx?src={encodeURIComponent(window.location.origin + preview.url)}" class="w-full h-96 border-0 rounded-lg bg-white" title={preview.name}></iframe>
+            </div>
+          {:else if preview.type === 'powerpoint'}
+            <div class="p-8 text-center">
+              <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                <svg class="w-8 h-8 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2"/></svg>
+              </div>
+              <p class="text-sm text-gray-300 mb-2">{preview.name}</p>
+              <p class="text-xs text-gray-500 mb-4">Presentation preview -- download to view in full</p>
+              <iframe src="https://view.officeapps.live.com/op/embed.aspx?src={encodeURIComponent(window.location.origin + preview.url)}" class="w-full h-96 border-0 rounded-lg bg-white" title={preview.name}></iframe>
+            </div>
+          {:else if preview.type === 'design'}
+            <div class="p-8 text-center">
+              <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                <svg class="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              </div>
+              <p class="text-sm text-gray-300 mb-2">{preview.name}</p>
+              <p class="text-xs text-gray-500">Design file -- download to open in the appropriate application</p>
             </div>
           {/if}
           <button onclick={() => preview = null} class="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
