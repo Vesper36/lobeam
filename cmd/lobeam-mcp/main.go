@@ -336,6 +336,9 @@ func handleToolUpload(args map[string]interface{}) (string, error) {
 		return "", fmt.Errorf("upload chunk failed: %w", err)
 	}
 	resp2.Body.Close()
+	if resp2.StatusCode >= 400 {
+		return "", fmt.Errorf("upload chunk failed: HTTP %d", resp2.StatusCode)
+	}
 
 	// Step 3: Complete
 	resp3, err := http.Post(serverURL+"/api/upload/complete/"+initRes.TransferID, "", nil)
@@ -343,6 +346,9 @@ func handleToolUpload(args map[string]interface{}) (string, error) {
 		return "", fmt.Errorf("complete upload failed: %w", err)
 	}
 	defer resp3.Body.Close()
+	if resp3.StatusCode >= 400 {
+		return "", fmt.Errorf("complete upload failed: HTTP %d", resp3.StatusCode)
+	}
 
 	var completeRes struct {
 		DownloadURL string `json:"download_url"`
@@ -474,6 +480,10 @@ func detectMimeType(name string) string {
 			ext = ext[i:]
 			break
 		}
+	}
+	// Files without extension (Makefile, Dockerfile, LICENSE) default to octet-stream
+	if !strings.HasPrefix(ext, ".") {
+		return "application/octet-stream"
 	}
 	mimeTypes := map[string]string{
 		".txt": "text/plain", ".md": "text/markdown",

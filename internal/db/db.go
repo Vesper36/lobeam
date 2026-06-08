@@ -213,6 +213,9 @@ func (db *DB) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_p2p_code ON p2p_sessions(code);
 	CREATE INDEX IF NOT EXISTS idx_folder_token ON web_folders(token);
 	CREATE INDEX IF NOT EXISTS idx_request_status ON file_requests(status);
+	CREATE INDEX IF NOT EXISTS idx_requests_user ON file_requests(user_id);
+	CREATE INDEX IF NOT EXISTS idx_folders_user ON web_folders(user_id);
+	CREATE INDEX IF NOT EXISTS idx_folder_files_folder ON web_folder_files(folder_id);
 	`
 	_, err := db.conn.Exec(schema)
 	if err != nil {

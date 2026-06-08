@@ -325,11 +325,12 @@ func (s *Server) Start() error {
 	slog.Info("LoBeam server starting", "addr", addr, "public_url", s.cfg.PublicURL)
 
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      s.Router(),
-		ReadTimeout:  0,
-		WriteTimeout: 0,
-		IdleTimeout:  120 * time.Second,
+		Addr:              addr,
+		Handler:           s.Router(),
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      0,  // streaming downloads need unlimited write time
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Graceful shutdown
