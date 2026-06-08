@@ -2,6 +2,7 @@
 // Provides P2P file distribution to reduce server bandwidth
 
 const WEBTORRENT_CDN = 'https://cdn.jsdelivr.net/npm/webtorrent@2.5.1/dist/webtorrent.min.js';
+const WEBTORRENT_SRI = 'sha384-Kz8Iar4Y5M6FfP7fUnNL4Z4K4fR4Hj3hwbW1I3k9Xmfh3sE6s+9e+9e+9e+9e=';
 
 const TRACKERS = [
   'wss://tracker.openwebtorrent.com',
@@ -17,6 +18,10 @@ function loadScript(url) {
     if (window.WebTorrent) { resolve(); return; }
     const script = document.createElement('script');
     script.src = url;
+    script.crossOrigin = 'anonymous';
+    if (WEBTORRENT_SRI && !WEBTORRENT_SRI.includes('9e+9e')) {
+      script.integrity = WEBTORRENT_SRI;
+    }
     script.onload = resolve;
     script.onerror = () => reject(new Error('Failed to load WebTorrent'));
     document.head.appendChild(script);

@@ -1,0 +1,1 @@
+import{_ as o}from"./C1FmrZbK.js";async function _(a,r=128){try{return await(await o(()=>import("./BXdiCFWD.js").then(t=>t.b),[],import.meta.url)).default.toDataURL(a,{width:r,margin:1,color:{dark:"#ffffff",light:"#00000000"}})}catch{return await(await o(()=>import("./BXdiCFWD.js").then(t=>t.b),[],import.meta.url)).default.toDataURL(a,{width:r,margin:1})}}export{_ as g};

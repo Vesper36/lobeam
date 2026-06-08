@@ -18,7 +18,8 @@ func New(dbPath string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	conn.SetMaxOpenConns(1)
+	conn.SetMaxOpenConns(5)
+	conn.SetMaxIdleConns(5)
 	db := &DB{conn: conn}
 	if err := db.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)

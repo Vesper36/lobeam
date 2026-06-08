@@ -70,6 +70,22 @@ func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user
 	}
 
 	go s.hub.Run()
+
+	// Cleanup expired OIDC states every 5 minutes
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			s.oidcStates.Range(func(key, value any) bool {
+				if entry, ok := value.(oidcStateEntry); ok && entry.expires.Before(now) {
+					s.oidcStates.Delete(key)
+				}
+				return true
+			})
+		}
+	}()
+
 	return s
 }
 
@@ -87,7 +103,7 @@ func (s *Server) Router() http.Handler {
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Encryption-Key", "X-Transfer-ID", "X-File-ID", "X-Chunk-Index", "X-Total-Chunks", "X-File-Name", "X-File-Size", "X-Mime-Type", "X-Chunk-Hash", "X-Uploader-Name", "X-Uploader-Email", "X-Uploader-Message", "X-Password"},
 		ExposedHeaders:   []string{"X-Upload-Offset", "X-Total-Size", "X-File-Name", "X-File-Size", "X-Encrypted", "Accept-Ranges", "Content-Range"},
-		AllowCredentials: true,
+		AllowCredentials: false,
 		MaxAge:           300,
 	}))
 

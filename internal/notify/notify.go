@@ -2,6 +2,7 @@ package notify
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/wneessen/go-mail"
@@ -10,7 +11,9 @@ import (
 )
 
 type Service struct {
-	cfg *config.Config
+	cfg    *config.Config
+	client *mail.Client
+	mu     sync.Mutex
 }
 
 func NewService(cfg *config.Config) *Service {
@@ -19,6 +22,28 @@ func NewService(cfg *config.Config) *Service {
 
 func (s *Service) isEnabled() bool {
 	return s.cfg.SMTPHost != ""
+}
+
+// getClient returns a cached SMTP client, creating one if needed
+func (s *Service) getClient() (*mail.Client, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client != nil {
+		return s.client, nil
+	}
+	client, err := mail.NewClient(s.cfg.SMTPHost,
+		mail.WithPort(s.cfg.SMTPPort),
+		mail.WithTLSPortPolicy(mail.TLSMandatory),
+		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(s.cfg.SMTPUsername),
+		mail.WithPassword(s.cfg.SMTPPassword),
+		mail.WithTimeout(10*time.Second),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create smtp client: %w", err)
+	}
+	s.client = client
+	return client, nil
 }
 
 func (s *Service) SendTransferReady(toEmail, transferID, transferName string) error {
@@ -39,7 +64,7 @@ Download link: %s
 This link will expire based on the sender's settings.
 `, transferName, transferName, downloadURL, downloadURL)
 
-	return s.send(toEmail, subject, body)
+	return s.sendWithFrom(s.cfg.SMTPFrom, toEmail, subject, body)
 }
 
 func (s *Service) SendTransferEmail(toEmail, fromEmail, subject, message, downloadURL, transferName string) error {
@@ -58,7 +83,7 @@ func (s *Service) SendTransferEmail(toEmail, fromEmail, subject, message, downlo
 	}
 	body = fmt.Sprintf("%s\n\nThis link will expire based on the sender's settings.", body)
 
-	return s.SendRaw(toEmail, fromEmail, subject, body)
+	return s.sendWithFrom(fromEmail, toEmail, subject, body)
 }
 
 func (s *Service) SendDownloadNotification(senderEmail, transferID, fileName string) error {
@@ -75,7 +100,7 @@ Transfer ID: %s
 Time: %s
 `, fileName, fileName, transferID, time.Now().Format(time.RFC1123))
 
-	return s.send(senderEmail, subject, body)
+	return s.sendWithFrom(s.cfg.SMTPFrom, senderEmail, subject, body)
 }
 
 func (s *Service) SendTransferExpiring(toEmail, transferID, transferName string, expiresAt time.Time) error {
@@ -93,25 +118,25 @@ Expires at: %s
 Download before it expires: %s/d/%s
 `, transferName, transferID, expiresAt.Format(time.RFC1123), s.cfg.PublicURL, transferID)
 
-	return s.send(toEmail, subject, body)
+	return s.sendWithFrom(s.cfg.SMTPFrom, toEmail, subject, body)
 }
 
-// SendRaw sends a raw email with custom from address. Used for auto-notifications.
+// SendRaw sends an email with a custom from address
 func (s *Service) SendRaw(to, from, subject, body string) error {
 	if !s.isEnabled() {
 		return nil
 	}
+	return s.sendWithFrom(from, to, subject, body)
+}
 
-	client, err := mail.NewClient(s.cfg.SMTPHost,
-		mail.WithPort(s.cfg.SMTPPort),
-		mail.WithTLSPortPolicy(mail.TLSMandatory),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(s.cfg.SMTPUsername),
-		mail.WithPassword(s.cfg.SMTPPassword),
-		mail.WithTimeout(10*time.Second),
-	)
+func (s *Service) sendWithFrom(from, to, subject, body string) error {
+	client, err := s.getClient()
 	if err != nil {
-		return fmt.Errorf("create smtp client: %w", err)
+		// Reset cached client on error
+		s.mu.Lock()
+		s.client = nil
+		s.mu.Unlock()
+		return err
 	}
 
 	msg := mail.NewMsg()
@@ -125,40 +150,10 @@ func (s *Service) SendRaw(to, from, subject, body string) error {
 	msg.SetBodyString(mail.TypeTextPlain, body)
 
 	if err := client.DialAndSend(msg); err != nil {
-		return fmt.Errorf("send email: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Service) send(to, subject, body string) error {
-	if !s.isEnabled() {
-		return nil
-	}
-
-	client, err := mail.NewClient(s.cfg.SMTPHost,
-		mail.WithPort(s.cfg.SMTPPort),
-		mail.WithTLSPortPolicy(mail.TLSMandatory),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(s.cfg.SMTPUsername),
-		mail.WithPassword(s.cfg.SMTPPassword),
-		mail.WithTimeout(10*time.Second),
-	)
-	if err != nil {
-		return fmt.Errorf("create smtp client: %w", err)
-	}
-
-	msg := mail.NewMsg()
-	if err := msg.From(s.cfg.SMTPFrom); err != nil {
-		return fmt.Errorf("set from: %w", err)
-	}
-	if err := msg.AddTo(to); err != nil {
-		return fmt.Errorf("set to: %w", err)
-	}
-	msg.Subject(subject)
-	msg.SetBodyString(mail.TypeTextPlain, body)
-
-	if err := client.DialAndSend(msg); err != nil {
+		// Reset cached client on connection error
+		s.mu.Lock()
+		s.client = nil
+		s.mu.Unlock()
 		return fmt.Errorf("send email: %w", err)
 	}
 

@@ -47,7 +47,13 @@
     try {
       const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ws?room=${transferID}`;
       const socket = new WebSocket(wsUrl);
-      socket.onopen = () => { wsConnected = true; };
+      let reconnectAttempts = 0;
+      const maxReconnects = 10;
+
+      socket.onopen = () => {
+        wsConnected = true;
+        reconnectAttempts = 0;
+      };
       socket.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
@@ -56,7 +62,18 @@
           }
         } catch {}
       };
-      socket.onclose = () => { wsConnected = false; };
+      socket.onclose = () => {
+        wsConnected = false;
+        // Auto-reconnect with exponential backoff
+        if (reconnectAttempts < maxReconnects) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          reconnectAttempts++;
+          setTimeout(() => connectWS(transferID), delay);
+        }
+      };
+      socket.onerror = () => {
+        socket.close();
+      };
     } catch {}
   }
 

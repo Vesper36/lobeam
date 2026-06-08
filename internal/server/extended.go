@@ -1,9 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -1170,61 +1168,7 @@ func (s *Server) handleScopedUploadChunk(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	if existingChunk, err := s.db.GetChunk(fileID, chunkIndex); err == nil && existingChunk != nil && existingChunk.Uploaded {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"chunk_index": chunkIndex,
-			"file_id":     fileID,
-			"size":        existingChunk.Size,
-			"resumed":     true,
-		})
-		return
-	}
-
-	body, err := io.ReadAll(io.LimitReader(r.Body, expectedSize+1))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to read chunk")
-		return
-	}
-	defer r.Body.Close()
-	if int64(len(body)) != expectedSize {
-		writeError(w, http.StatusBadRequest, "chunk size mismatch")
-		return
-	}
-
-	if chunkSHA256 != "" {
-		h := sha256.Sum256(body)
-		actualHash := hex.EncodeToString(h[:])
-		if actualHash != chunkSHA256 {
-			writeError(w, http.StatusBadRequest, "chunk hash mismatch")
-			return
-		}
-	}
-
-	storageKey := fmt.Sprintf("%s/%s/chunk_%06d", transferID, fileID, chunkIndex)
-	if err := s.store.Put(storageKey, bytes.NewReader(body)); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to store chunk")
-		return
-	}
-
-	chunk := &model.Chunk{
-		ID:         uuid.New().String()[:12],
-		FileID:     fileID,
-		Index:      chunkIndex,
-		Size:       int64(len(body)),
-		SHA256:     chunkSHA256,
-		Uploaded:   true,
-		StorageKey: storageKey,
-	}
-	if err := s.db.CreateChunk(chunk); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to record chunk")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"chunk_index": chunkIndex,
-		"file_id":     fileID,
-		"size":        len(body),
-	})
+	s.processChunk(w, r, transferID, fileID, chunkIndex, chunkSHA256, expectedSize+1)
 }
 
 func (s *Server) ensureTransferChunksComplete(transferID string) (int64, error) {

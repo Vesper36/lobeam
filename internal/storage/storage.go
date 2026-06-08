@@ -11,6 +11,8 @@ import (
 type Store interface {
 	// Put stores data at the given key
 	Put(key string, data io.Reader) error
+	// PutWithSize stores data with known size (enables streaming for S3)
+	PutWithSize(key string, data io.Reader, size int64) error
 	// Get returns a reader for the given key
 	Get(key string) (io.ReadCloser, error)
 	// Delete removes the object at the given key
@@ -32,6 +34,10 @@ func NewLocalStore(basePath string) (*LocalStore, error) {
 }
 
 func (s *LocalStore) Put(key string, data io.Reader) error {
+	return s.PutWithSize(key, data, 0)
+}
+
+func (s *LocalStore) PutWithSize(key string, data io.Reader, _ int64) error {
 	path := filepath.Join(s.BasePath, key)
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {

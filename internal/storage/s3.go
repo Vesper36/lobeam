@@ -99,6 +99,25 @@ func (s *S3Store) Put(key string, data io.Reader) error {
 	return nil
 }
 
+// PutWithSize streams data to S3 without reading everything into memory.
+// When size > 0, it is set as ContentLength enabling true streaming.
+func (s *S3Store) PutWithSize(key string, data io.Reader, size int64) error {
+	if size <= 0 {
+		return s.Put(key, data)
+	}
+	input := &s3.PutObjectInput{
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(s.objectKey(key)),
+		Body:          data,
+		ContentLength: aws.Int64(size),
+	}
+	_, err := s.client.PutObject(context.TODO(), input)
+	if err != nil {
+		return fmt.Errorf("s3 put: %w", err)
+	}
+	return nil
+}
+
 func (s *S3Store) Get(key string) (io.ReadCloser, error) {
 	out, err := s.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),

@@ -183,7 +183,6 @@ func (s *Server) handleUploadInit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart or raw body
 	transferID := r.Header.Get("X-Transfer-ID")
 	fileID := r.Header.Get("X-File-ID")
 	chunkIndexStr := r.Header.Get("X-Chunk-Index")
@@ -219,63 +218,7 @@ func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Resume support: check if chunk already uploaded, skip if so
-	if existingChunk, err := s.db.GetChunk(fileID, chunkIndex); err == nil && existingChunk != nil && existingChunk.Uploaded {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"chunk_index": chunkIndex,
-			"file_id":     fileID,
-			"size":        existingChunk.Size,
-			"resumed":     true,
-		})
-		return
-	}
-
-	// Read chunk data with size limit to prevent OOM
-	body, err := io.ReadAll(io.LimitReader(r.Body, s.cfg.MaxChunkSize+1))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to read chunk")
-		return
-	}
-	defer r.Body.Close()
-	if s.cfg.MaxChunkSize > 0 && int64(len(body)) > s.cfg.MaxChunkSize {
-		writeError(w, http.StatusRequestEntityTooLarge, "chunk exceeds maximum size")
-		return
-	}
-
-	// Verify hash if provided
-	if chunkSHA256 != "" {
-		h := sha256.Sum256(body)
-		actualHash := hex.EncodeToString(h[:])
-		if actualHash != chunkSHA256 {
-			writeError(w, http.StatusBadRequest, "chunk hash mismatch")
-			return
-		}
-	}
-
-	// Store chunk
-	storageKey := fmt.Sprintf("%s/%s/chunk_%06d", transferID, fileID, chunkIndex)
-	if err := s.store.Put(storageKey, bytes.NewReader(body)); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to store chunk")
-		return
-	}
-
-	// Create chunk record
-	chunk := &model.Chunk{
-		ID:         uuid.New().String()[:16],
-		FileID:     fileID,
-		Index:      chunkIndex,
-		Size:       int64(len(body)),
-		SHA256:     chunkSHA256,
-		Uploaded:   true,
-		StorageKey: storageKey,
-	}
-	s.db.CreateChunk(chunk)
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"chunk_index": chunkIndex,
-		"file_id":     fileID,
-		"size":        len(body),
-	})
+	s.processChunk(w, r, transferID, fileID, chunkIndex, chunkSHA256, s.cfg.MaxChunkSize+1)
 }
 
 func (s *Server) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
@@ -648,6 +591,78 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---- Helpers ----
+
+// processChunk is the shared chunk upload logic used by both handleUploadChunk
+// and handleScopedUploadChunk. It handles resume check, body reading, hash
+// verification, storage, and DB record creation.
+func (s *Server) processChunk(w http.ResponseWriter, r *http.Request, transferID, fileID string, chunkIndex int, chunkSHA256 string, bodyLimit int64) {
+	// Resume support
+	if existingChunk, err := s.db.GetChunk(fileID, chunkIndex); err == nil && existingChunk != nil && existingChunk.Uploaded {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"chunk_index": chunkIndex,
+			"file_id":     fileID,
+			"size":        existingChunk.Size,
+			"resumed":     true,
+		})
+		return
+	}
+
+	// Read chunk data with size limit
+	var body []byte
+	var err error
+	if bodyLimit > 0 {
+		body, err = io.ReadAll(io.LimitReader(r.Body, bodyLimit))
+	} else {
+		body, err = io.ReadAll(r.Body)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read chunk")
+		return
+	}
+	defer r.Body.Close()
+	if bodyLimit > 0 && int64(len(body)) >= bodyLimit {
+		writeError(w, http.StatusRequestEntityTooLarge, "chunk exceeds maximum size")
+		return
+	}
+
+	// Verify hash if provided
+	if chunkSHA256 != "" {
+		h := sha256.Sum256(body)
+		actualHash := hex.EncodeToString(h[:])
+		if actualHash != chunkSHA256 {
+			writeError(w, http.StatusBadRequest, "chunk hash mismatch")
+			return
+		}
+	}
+
+	// Store chunk
+	storageKey := fmt.Sprintf("%s/%s/chunk_%06d", transferID, fileID, chunkIndex)
+	if err := s.store.Put(storageKey, bytes.NewReader(body)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store chunk")
+		return
+	}
+
+	// Create chunk record
+	chunk := &model.Chunk{
+		ID:         uuid.New().String()[:16],
+		FileID:     fileID,
+		Index:      chunkIndex,
+		Size:       int64(len(body)),
+		SHA256:     chunkSHA256,
+		Uploaded:   true,
+		StorageKey: storageKey,
+	}
+	if err := s.db.CreateChunk(chunk); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to record chunk")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"chunk_index": chunkIndex,
+		"file_id":     fileID,
+		"size":        len(body),
+	})
+}
 
 func int64Ptr(v int64) *int64 {
 	return &v
