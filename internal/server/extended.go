@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -187,7 +188,7 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 	fileID := uuid.New().String()[:12]
 	storagePath := fmt.Sprintf("requests/%s/%s_%s", id, fileID, fileName)
 
-	if err := s.store.Put(storagePath, bytes.NewReader(body)); err != nil {
+	if err := s.store.Put(r.Context(), storagePath, bytes.NewReader(body)); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store file")
 		return
 	}
@@ -559,7 +560,7 @@ func (s *Server) handleUploadToWebFolder(w http.ResponseWriter, r *http.Request)
 	fileID := uuid.New().String()[:12]
 	storagePath := fmt.Sprintf("folders/%s/%s_%s", folder.ID, fileID, fileName)
 
-	if err := s.store.Put(storagePath, bytes.NewReader(body)); err != nil {
+	if err := s.store.Put(r.Context(), storagePath, bytes.NewReader(body)); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store file")
 		return
 	}
@@ -757,7 +758,7 @@ func (s *Server) handleCompleteWebFolderUpload(w http.ResponseWriter, r *http.Re
 	}
 
 	storagePath := fmt.Sprintf("folders/%s/%s_%s", folder.ID, file.ID, file.Name)
-	if err := s.storeWebFolderFileFromChunks(file, storagePath); err != nil {
+	if err := s.storeWebFolderFileFromChunks(r.Context(), file, storagePath); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to assemble folder file")
 		return
 	}
@@ -824,7 +825,7 @@ func (s *Server) handleDownloadFromWebFolder(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	reader, err := s.store.Get(file.StoragePath)
+	reader, err := s.store.Get(r.Context(), file.StoragePath)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "file data not found")
 		return
@@ -1210,14 +1211,14 @@ func (s *Server) ensureTransferChunksComplete(transferID string) (int64, error) 
 	return totalSize, nil
 }
 
-func (s *Server) storeWebFolderFileFromChunks(file *model.File, storagePath string) error {
+func (s *Server) storeWebFolderFileFromChunks(ctx context.Context, file *model.File, storagePath string) error {
 	chunks, err := s.db.GetChunksByFile(file.ID)
 	if err != nil {
 		return err
 	}
 	readers := make([]io.ReadCloser, 0, len(chunks))
 	for _, chunk := range chunks {
-		reader, err := s.store.Get(chunk.StorageKey)
+		reader, err := s.store.Get(ctx, chunk.StorageKey)
 		if err != nil {
 			for _, r := range readers {
 				r.Close()
@@ -1236,5 +1237,5 @@ func (s *Server) storeWebFolderFileFromChunks(file *model.File, storagePath stri
 	for i, reader := range readers {
 		streams[i] = reader
 	}
-	return s.store.Put(storagePath, io.MultiReader(streams...))
+	return s.store.Put(ctx, storagePath, io.MultiReader(streams...))
 }

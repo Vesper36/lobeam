@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { api } from '$lib/utils/api.js';
   import { formatBytes, timeAgo, timeUntil, copyToClipboard, getFileIcon } from '$lib/utils/helpers.js';
 
@@ -29,7 +30,7 @@
   let requestCustomFields = $state('name,email');
   let requestRequiredFields = $state('email');
 
-  $effect(() => {
+  onMount(() => {
     loadAll();
   });
 

@@ -82,12 +82,12 @@ func (s *S3Store) objectKey(key string) string {
 	return key
 }
 
-func (s *S3Store) Put(key string, data io.Reader) error {
+func (s *S3Store) Put(ctx context.Context, key string, data io.Reader) error {
 	body, err := io.ReadAll(data)
 	if err != nil {
 		return fmt.Errorf("read data: %w", err)
 	}
-	_, err = s.client.PutObject(context.TODO(), &s3.PutObjectInput{
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
 		Key:           aws.String(s.objectKey(key)),
 		Body:          bytes.NewReader(body),
@@ -101,9 +101,9 @@ func (s *S3Store) Put(key string, data io.Reader) error {
 
 // PutWithSize streams data to S3 without reading everything into memory.
 // When size > 0, it is set as ContentLength enabling true streaming.
-func (s *S3Store) PutWithSize(key string, data io.Reader, size int64) error {
+func (s *S3Store) PutWithSize(ctx context.Context, key string, data io.Reader, size int64) error {
 	if size <= 0 {
-		return s.Put(key, data)
+		return s.Put(ctx, key, data)
 	}
 	input := &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
@@ -111,15 +111,15 @@ func (s *S3Store) PutWithSize(key string, data io.Reader, size int64) error {
 		Body:          data,
 		ContentLength: aws.Int64(size),
 	}
-	_, err := s.client.PutObject(context.TODO(), input)
+	_, err := s.client.PutObject(ctx, input)
 	if err != nil {
 		return fmt.Errorf("s3 put: %w", err)
 	}
 	return nil
 }
 
-func (s *S3Store) Get(key string) (io.ReadCloser, error) {
-	out, err := s.client.GetObject(context.TODO(), &s3.GetObjectInput{
+func (s *S3Store) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s.objectKey(key)),
 	})
@@ -129,8 +129,8 @@ func (s *S3Store) Get(key string) (io.ReadCloser, error) {
 	return out.Body, nil
 }
 
-func (s *S3Store) Delete(key string) error {
-	_, err := s.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+func (s *S3Store) Delete(ctx context.Context, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s.objectKey(key)),
 	})

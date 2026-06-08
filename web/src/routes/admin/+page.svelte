@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { api } from '$lib/utils/api.js';
   import { formatBytes, timeAgo } from '$lib/utils/helpers.js';
 
@@ -40,7 +41,7 @@
   });
   let settingsSaved = $state(false);
 
-  $effect(async () => {
+  onMount(async () => {
     try {
       me = await api.getMe();
       if (me?.role !== 'admin') {

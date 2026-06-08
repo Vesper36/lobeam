@@ -198,7 +198,21 @@ func (s *Server) Router() http.Handler {
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		dbOK := true
+		if err := s.db.Ping(); err != nil {
+			dbOK = false
+		}
+		status := "ok"
+		code := http.StatusOK
+		if !dbOK {
+			status = "degraded"
+			code = http.StatusServiceUnavailable
+		}
+		writeJSON(w, code, map[string]interface{}{
+			"status":   status,
+			"database": dbOK,
+			"version":  "1.0.0",
+		})
 	})
 
 	// SPA frontend - serve embedded static files

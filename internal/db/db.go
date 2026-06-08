@@ -29,6 +29,9 @@ func New(dbPath string) (*DB, error) {
 
 func (db *DB) Close() error { return db.conn.Close() }
 
+// Ping checks if the database connection is alive
+func (db *DB) Ping() error { return db.conn.Ping() }
+
 func (db *DB) migrate() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS users (

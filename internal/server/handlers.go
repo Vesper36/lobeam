@@ -349,7 +349,7 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Stream chunks
 	for _, chunk := range chunks {
-		reader, err := s.store.Get(chunk.StorageKey)
+		reader, err := s.store.Get(r.Context(), chunk.StorageKey)
 		if err != nil {
 			return
 		}
@@ -470,12 +470,12 @@ func (s *Server) handleDeleteTransfer(w http.ResponseWriter, r *http.Request) {
 		for _, f := range files {
 			if chunks, err := s.db.GetChunksByFile(f.ID); err == nil {
 				for _, c := range chunks {
-					s.store.Delete(c.StorageKey)
+					s.store.Delete(r.Context(), c.StorageKey)
 				}
 			}
 			// Also try storage_path for direct-stored files
 			if f.StoragePath != "" {
-				s.store.Delete(f.StoragePath)
+				s.store.Delete(r.Context(), f.StoragePath)
 			}
 		}
 	}
@@ -632,7 +632,7 @@ func (s *Server) processChunk(w http.ResponseWriter, r *http.Request, transferID
 
 	// Store chunk
 	storageKey := fmt.Sprintf("%s/%s/chunk_%06d", transferID, fileID, chunkIndex)
-	if err := s.store.Put(storageKey, bytes.NewReader(body)); err != nil {
+	if err := s.store.Put(r.Context(), storageKey, bytes.NewReader(body)); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store chunk")
 		return
 	}
@@ -784,7 +784,7 @@ func (s *Server) serveRange(w http.ResponseWriter, r *http.Request, file *model.
 		if written >= length {
 			break
 		}
-		rd, err := s.store.Get(c.StorageKey)
+		rd, err := s.store.Get(r.Context(), c.StorageKey)
 		if err != nil {
 			return
 		}

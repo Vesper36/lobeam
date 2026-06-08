@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,13 +11,13 @@ import (
 // Store abstracts file storage operations
 type Store interface {
 	// Put stores data at the given key
-	Put(key string, data io.Reader) error
+	Put(ctx context.Context, key string, data io.Reader) error
 	// PutWithSize stores data with known size (enables streaming for S3)
-	PutWithSize(key string, data io.Reader, size int64) error
+	PutWithSize(ctx context.Context, key string, data io.Reader, size int64) error
 	// Get returns a reader for the given key
-	Get(key string) (io.ReadCloser, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	// Delete removes the object at the given key
-	Delete(key string) error
+	Delete(ctx context.Context, key string) error
 }
 
 // LocalStore implements Store using the local filesystem
@@ -31,11 +32,11 @@ func NewLocalStore(basePath string) (*LocalStore, error) {
 	return &LocalStore{BasePath: basePath}, nil
 }
 
-func (s *LocalStore) Put(key string, data io.Reader) error {
-	return s.PutWithSize(key, data, 0)
+func (s *LocalStore) Put(ctx context.Context, key string, data io.Reader) error {
+	return s.PutWithSize(ctx, key, data, 0)
 }
 
-func (s *LocalStore) PutWithSize(key string, data io.Reader, _ int64) error {
+func (s *LocalStore) PutWithSize(_ context.Context, key string, data io.Reader, _ int64) error {
 	path := filepath.Join(s.BasePath, key)
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -52,7 +53,7 @@ func (s *LocalStore) PutWithSize(key string, data io.Reader, _ int64) error {
 	return nil
 }
 
-func (s *LocalStore) Get(key string) (io.ReadCloser, error) {
+func (s *LocalStore) Get(_ context.Context, key string) (io.ReadCloser, error) {
 	path := filepath.Join(s.BasePath, key)
 	f, err := os.Open(path)
 	if err != nil {
@@ -61,7 +62,7 @@ func (s *LocalStore) Get(key string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (s *LocalStore) Delete(key string) error {
+func (s *LocalStore) Delete(_ context.Context, key string) error {
 	path := filepath.Join(s.BasePath, key)
 	return os.Remove(path)
 }
