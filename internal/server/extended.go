@@ -1,13 +1,16 @@
 package server
 
 import (
+	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -223,6 +226,7 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 			})
 		}
 	}
+	_ = s.db.UpdateTransferCounts(transferID)
 	_ = s.db.AddFileRequestUpload(id, actualSize)
 
 	// Audit log
@@ -243,6 +247,174 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 		"uploader_name":  uploaderName,
 		"uploader_email": uploaderEmail,
 		"message":        uploaderMessage,
+	})
+}
+
+func (s *Server) handleInitFileRequestUpload(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	fr, err := s.db.GetFileRequest(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "request not found")
+		return
+	}
+	if fr.Status != "active" || fr.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "request is no longer active")
+		return
+	}
+
+	var req struct {
+		Name          string `json:"name"`
+		Size          int64  `json:"size"`
+		MimeType      string `json:"mime_type"`
+		TotalChunks   int    `json:"total_chunks"`
+		ChunkSize     int64  `json:"chunk_size"`
+		UploaderName  string `json:"uploader_name"`
+		UploaderEmail string `json:"uploader_email"`
+		Message       string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "missing file name")
+		return
+	}
+	if err := validateChunkedUploadMetadata(req.Size, req.TotalChunks, req.ChunkSize); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.MimeType == "" {
+		req.MimeType = "application/octet-stream"
+	}
+	if fr.MaxFiles > 0 && fr.FileCount >= fr.MaxFiles {
+		writeError(w, http.StatusForbidden, "request file limit reached")
+		return
+	}
+	if fr.MaxFileSize > 0 && req.Size > fr.MaxFileSize {
+		writeError(w, http.StatusForbidden, "file exceeds size limit")
+		return
+	}
+	if allowedTypes := parseJSONStringList(fr.AllowedTypes); !fileTypeAllowed(req.Name, req.MimeType, allowedTypes) {
+		writeError(w, http.StatusForbidden, "file type is not allowed")
+		return
+	}
+
+	transferID := uuid.New().String()[:8]
+	fileID := uuid.New().String()[:12]
+	note := req.Message
+	if req.UploaderName != "" || req.UploaderEmail != "" {
+		note = strings.TrimSpace(fmt.Sprintf("Submitted by %s <%s>\n%s", req.UploaderName, req.UploaderEmail, req.Message))
+	}
+
+	t := &model.Transfer{
+		ID:           transferID,
+		UserID:       fr.UserID,
+		Name:         req.Name,
+		Mode:         "request:" + id,
+		Status:       "pending",
+		MaxDownloads: 100,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+		Note:         note,
+	}
+	if err := s.db.CreateTransfer(t); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create transfer")
+		return
+	}
+
+	f := &model.File{
+		ID:         fileID,
+		TransferID: transferID,
+		Name:       req.Name,
+		Size:       req.Size,
+		MimeType:   req.MimeType,
+		ChunkCount: req.TotalChunks,
+		ChunkSize:  req.ChunkSize,
+	}
+	if err := s.db.CreateFile(f); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create file record")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"request_id":   id,
+		"transfer_id":  transferID,
+		"file_id":      fileID,
+		"download_url": fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, transferID),
+	})
+}
+
+func (s *Server) handleFileRequestUploadChunk(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	fr, err := s.db.GetFileRequest(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "request not found")
+		return
+	}
+	if fr.Status != "active" || fr.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "request is no longer active")
+		return
+	}
+	s.handleScopedUploadChunk(w, r, "request:"+id)
+}
+
+func (s *Server) handleCompleteFileRequestUpload(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	transferID := chi.URLParam(r, "transferID")
+	fr, err := s.db.GetFileRequest(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "request not found")
+		return
+	}
+
+	t, err := s.getScopedTransfer(transferID, "request:"+id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "upload not found")
+		return
+	}
+	if t.Status == "ready" {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"status":       "ready",
+			"transfer":     t,
+			"download_url": fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, transferID),
+		})
+		return
+	}
+	if fr.Status != "active" || fr.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "request is no longer active")
+		return
+	}
+
+	totalSize, err := s.ensureTransferChunksComplete(transferID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.db.UpdateTransferCounts(transferID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update transfer")
+		return
+	}
+	if err := s.db.CompleteTransfer(transferID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to complete transfer")
+		return
+	}
+	_ = s.db.AddFileRequestUpload(id, totalSize)
+	if fr.UserID != nil {
+		details := fmt.Sprintf("File submitted to request %s", id)
+		if files, err := s.db.GetFilesByTransfer(transferID); err == nil && len(files) > 0 {
+			details = fmt.Sprintf("File %s submitted to request %s", files[0].Name, id)
+		}
+		if t.Note != "" {
+			details = fmt.Sprintf("%s: %s", details, t.Note)
+		}
+		s.db.CreateAuditLog(fr.UserID, "upload", "file_request", details, r.RemoteAddr)
+	}
+
+	updated, _ := s.db.GetTransfer(transferID)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "ready",
+		"transfer":     updated,
+		"download_url": fmt.Sprintf("%s/d/%s", s.cfg.PublicURL, transferID),
 	})
 }
 
@@ -416,7 +588,7 @@ func (s *Server) handleUploadToWebFolder(w http.ResponseWriter, r *http.Request)
 	s.db.UpdateWebFolderCounts(folder.ID)
 
 	// Send notification if upload notification is enabled
-	if folder.UserID != nil {
+	if folder.UserID != nil && s.notify != nil {
 		_ = s.notify.SendDownloadNotification("", transferID, fileName)
 	}
 
@@ -424,6 +596,206 @@ func (s *Server) handleUploadToWebFolder(w http.ResponseWriter, r *http.Request)
 		"file_id":   fileID,
 		"name":      fileName,
 		"size":      fileSize,
+		"folder_id": folder.ID,
+	})
+}
+
+func (s *Server) handleInitWebFolderUpload(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	folder, err := s.db.GetWebFolderByToken(token)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "folder not found")
+		return
+	}
+	if folder.Mode == "download_only" {
+		writeError(w, http.StatusForbidden, "uploads not allowed in this folder")
+		return
+	}
+	if folder.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "folder has expired")
+		return
+	}
+	if folder.MaxFiles > 0 && folder.FileCount >= folder.MaxFiles {
+		writeError(w, http.StatusForbidden, "folder is full")
+		return
+	}
+
+	var req struct {
+		Name          string `json:"name"`
+		Size          int64  `json:"size"`
+		MimeType      string `json:"mime_type"`
+		TotalChunks   int    `json:"total_chunks"`
+		ChunkSize     int64  `json:"chunk_size"`
+		UploaderName  string `json:"uploader_name"`
+		UploaderEmail string `json:"uploader_email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "missing file name")
+		return
+	}
+	if err := validateChunkedUploadMetadata(req.Size, req.TotalChunks, req.ChunkSize); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.MimeType == "" {
+		req.MimeType = "application/octet-stream"
+	}
+	if folder.MaxFileSize > 0 && req.Size > folder.MaxFileSize {
+		writeError(w, http.StatusForbidden, "file exceeds size limit")
+		return
+	}
+
+	transferID := uuid.New().String()[:8]
+	fileID := uuid.New().String()[:12]
+
+	t := &model.Transfer{
+		ID:           transferID,
+		Name:         req.Name,
+		Mode:         "folder:" + folder.ID,
+		Status:       "pending",
+		MaxDownloads: 1,
+		ExpiresAt:    folder.ExpiresAt,
+		Note:         req.UploaderName,
+		SenderEmail:  req.UploaderEmail,
+	}
+	if err := s.db.CreateTransfer(t); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create folder upload")
+		return
+	}
+
+	f := &model.File{
+		ID:         fileID,
+		TransferID: transferID,
+		Name:       req.Name,
+		Size:       req.Size,
+		MimeType:   req.MimeType,
+		ChunkCount: req.TotalChunks,
+		ChunkSize:  req.ChunkSize,
+	}
+	if err := s.db.CreateFile(f); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create file record")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"folder_id":   folder.ID,
+		"transfer_id": transferID,
+		"file_id":     fileID,
+	})
+}
+
+func (s *Server) handleWebFolderUploadChunk(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	folder, err := s.db.GetWebFolderByToken(token)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "folder not found")
+		return
+	}
+	if folder.Mode == "download_only" {
+		writeError(w, http.StatusForbidden, "uploads not allowed in this folder")
+		return
+	}
+	if folder.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "folder has expired")
+		return
+	}
+	s.handleScopedUploadChunk(w, r, "folder:"+folder.ID)
+}
+
+func (s *Server) handleCompleteWebFolderUpload(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	transferID := chi.URLParam(r, "transferID")
+	folder, err := s.db.GetWebFolderByToken(token)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "folder not found")
+		return
+	}
+	if folder.Mode == "download_only" {
+		writeError(w, http.StatusForbidden, "uploads not allowed in this folder")
+		return
+	}
+	if folder.ExpiresAt.Before(time.Now()) {
+		writeError(w, http.StatusGone, "folder has expired")
+		return
+	}
+
+	t, err := s.getScopedTransfer(transferID, "folder:"+folder.ID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "upload not found")
+		return
+	}
+	files, err := s.db.GetFilesByTransfer(t.ID)
+	if err != nil || len(files) != 1 {
+		writeError(w, http.StatusBadRequest, "invalid folder upload")
+		return
+	}
+	file := files[0]
+	if t.Status == "ready" {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"file_id":   file.ID,
+			"name":      file.Name,
+			"size":      file.Size,
+			"folder_id": folder.ID,
+		})
+		return
+	}
+	if folder.MaxFiles > 0 && folder.FileCount >= folder.MaxFiles {
+		writeError(w, http.StatusForbidden, "folder is full")
+		return
+	}
+	if folder.MaxFileSize > 0 && file.Size > folder.MaxFileSize {
+		writeError(w, http.StatusForbidden, "file exceeds size limit")
+		return
+	}
+	if _, err := s.ensureTransferChunksComplete(transferID); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	storagePath := fmt.Sprintf("folders/%s/%s_%s", folder.ID, file.ID, file.Name)
+	if err := s.storeWebFolderFileFromChunks(file, storagePath); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to assemble folder file")
+		return
+	}
+
+	folderFile := &model.WebFolderFile{
+		ID:            file.ID,
+		FolderID:      folder.ID,
+		Name:          file.Name,
+		Size:          file.Size,
+		MimeType:      file.MimeType,
+		StoragePath:   storagePath,
+		UploaderName:  t.Note,
+		UploaderEmail: t.SenderEmail,
+	}
+	if existing, err := s.db.GetWebFolderFile(file.ID); err == nil && existing.FolderID == folder.ID {
+		_ = s.db.UpdateWebFolderCounts(folder.ID)
+		_ = s.db.UpdateTransferCounts(transferID)
+		_ = s.db.CompleteTransfer(transferID)
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"file_id":   existing.ID,
+			"name":      existing.Name,
+			"size":      existing.Size,
+			"folder_id": existing.FolderID,
+		})
+		return
+	}
+	if err := s.db.AddWebFolderFile(folderFile); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to record file")
+		return
+	}
+	_ = s.db.UpdateWebFolderCounts(folder.ID)
+	_ = s.db.UpdateTransferCounts(transferID)
+	_ = s.db.CompleteTransfer(transferID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"file_id":   file.ID,
+		"name":      file.Name,
+		"size":      file.Size,
 		"folder_id": folder.ID,
 	})
 }
@@ -590,6 +962,222 @@ func fileTypeAllowed(fileName, mimeType string, allowedTypes []string) bool {
 		}
 	}
 	return false
+}
+
+func validateChunkedUploadMetadata(size int64, totalChunks int, chunkSize int64) error {
+	if size < 0 {
+		return fmt.Errorf("file size must not be negative")
+	}
+	if totalChunks <= 0 {
+		return fmt.Errorf("total chunks must be positive")
+	}
+	if chunkSize <= 0 {
+		return fmt.Errorf("chunk size must be positive")
+	}
+
+	expectedChunks := int64(1)
+	if size > 0 {
+		expectedChunks = ((size - 1) / chunkSize) + 1
+	}
+	if int64(totalChunks) != expectedChunks {
+		return fmt.Errorf("total chunks does not match file size")
+	}
+	return nil
+}
+
+func expectedChunkSize(file *model.File, chunkIndex int) (int64, error) {
+	if file.Size < 0 {
+		return 0, fmt.Errorf("file size must not be negative")
+	}
+	if file.ChunkCount <= 0 {
+		return 0, fmt.Errorf("invalid chunk count")
+	}
+	if file.ChunkSize <= 0 {
+		return 0, fmt.Errorf("invalid chunk size")
+	}
+	if chunkIndex < 0 || chunkIndex >= file.ChunkCount {
+		return 0, fmt.Errorf("invalid chunk index")
+	}
+	if chunkIndex == file.ChunkCount-1 {
+		size := file.Size - file.ChunkSize*int64(file.ChunkCount-1)
+		if size < 0 {
+			return 0, fmt.Errorf("invalid chunk metadata")
+		}
+		return size, nil
+	}
+	return file.ChunkSize, nil
+}
+
+func (s *Server) getScopedTransfer(transferID, expectedMode string) (*model.Transfer, error) {
+	t, err := s.db.GetTransfer(transferID)
+	if err != nil {
+		return nil, err
+	}
+	if t.Mode != expectedMode {
+		return nil, fmt.Errorf("upload scope mismatch")
+	}
+	return t, nil
+}
+
+func (s *Server) handleScopedUploadChunk(w http.ResponseWriter, r *http.Request, expectedMode string) {
+	transferID := r.Header.Get("X-Transfer-ID")
+	fileID := r.Header.Get("X-File-ID")
+	chunkIndexStr := r.Header.Get("X-Chunk-Index")
+	chunkSHA256 := r.Header.Get("X-Chunk-Hash")
+
+	if transferID == "" || fileID == "" || chunkIndexStr == "" {
+		writeError(w, http.StatusBadRequest, "missing required headers")
+		return
+	}
+	t, err := s.getScopedTransfer(transferID, expectedMode)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "upload not found")
+		return
+	}
+	if t.Status == "ready" {
+		writeError(w, http.StatusConflict, "upload already completed")
+		return
+	}
+
+	file, err := s.db.GetFile(fileID)
+	if err != nil || file.TransferID != transferID {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+
+	chunkIndex, err := strconv.Atoi(chunkIndexStr)
+	if err != nil || chunkIndex < 0 || chunkIndex >= file.ChunkCount {
+		writeError(w, http.StatusBadRequest, "invalid chunk index")
+		return
+	}
+	expectedSize, err := expectedChunkSize(file, chunkIndex)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if existingChunk, err := s.db.GetChunk(fileID, chunkIndex); err == nil && existingChunk != nil && existingChunk.Uploaded {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"chunk_index": chunkIndex,
+			"file_id":     fileID,
+			"size":        existingChunk.Size,
+			"resumed":     true,
+		})
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, expectedSize+1))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read chunk")
+		return
+	}
+	defer r.Body.Close()
+	if int64(len(body)) != expectedSize {
+		writeError(w, http.StatusBadRequest, "chunk size mismatch")
+		return
+	}
+
+	if chunkSHA256 != "" {
+		h := sha256.Sum256(body)
+		actualHash := hex.EncodeToString(h[:])
+		if actualHash != chunkSHA256 {
+			writeError(w, http.StatusBadRequest, "chunk hash mismatch")
+			return
+		}
+	}
+
+	storageKey := fmt.Sprintf("%s/%s/chunk_%06d", transferID, fileID, chunkIndex)
+	if err := s.store.Put(storageKey, bytes.NewReader(body)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to store chunk")
+		return
+	}
+
+	chunk := &model.Chunk{
+		ID:         uuid.New().String()[:12],
+		FileID:     fileID,
+		Index:      chunkIndex,
+		Size:       int64(len(body)),
+		SHA256:     chunkSHA256,
+		Uploaded:   true,
+		StorageKey: storageKey,
+	}
+	if err := s.db.CreateChunk(chunk); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to record chunk")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"chunk_index": chunkIndex,
+		"file_id":     fileID,
+		"size":        len(body),
+	})
+}
+
+func (s *Server) ensureTransferChunksComplete(transferID string) (int64, error) {
+	files, err := s.db.GetFilesByTransfer(transferID)
+	if err != nil {
+		return 0, err
+	}
+	if len(files) == 0 {
+		return 0, fmt.Errorf("upload has no files")
+	}
+
+	var totalSize int64
+	for _, file := range files {
+		chunks, err := s.db.GetChunksByFile(file.ID)
+		if err != nil {
+			return 0, err
+		}
+		if len(chunks) != file.ChunkCount {
+			return 0, fmt.Errorf("upload is missing chunks")
+		}
+		var fileSize int64
+		seen := make(map[int]bool, file.ChunkCount)
+		for _, chunk := range chunks {
+			if !chunk.Uploaded {
+				return 0, fmt.Errorf("upload is missing chunks")
+			}
+			if chunk.Index < 0 || chunk.Index >= file.ChunkCount || seen[chunk.Index] {
+				return 0, fmt.Errorf("upload has invalid chunks")
+			}
+			seen[chunk.Index] = true
+			fileSize += chunk.Size
+		}
+		if file.Size != fileSize {
+			return 0, fmt.Errorf("uploaded size does not match file size")
+		}
+		totalSize += fileSize
+	}
+	return totalSize, nil
+}
+
+func (s *Server) storeWebFolderFileFromChunks(file *model.File, storagePath string) error {
+	chunks, err := s.db.GetChunksByFile(file.ID)
+	if err != nil {
+		return err
+	}
+	readers := make([]io.ReadCloser, 0, len(chunks))
+	for _, chunk := range chunks {
+		reader, err := s.store.Get(chunk.StorageKey)
+		if err != nil {
+			for _, r := range readers {
+				r.Close()
+			}
+			return err
+		}
+		readers = append(readers, reader)
+	}
+	defer func() {
+		for _, reader := range readers {
+			reader.Close()
+		}
+	}()
+
+	streams := make([]io.Reader, len(readers))
+	for i, reader := range readers {
+		streams[i] = reader
+	}
+	return s.store.Put(storagePath, io.MultiReader(streams...))
 }
 
 func bytesReader(b []byte) io.Reader {

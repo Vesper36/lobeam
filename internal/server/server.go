@@ -122,11 +122,17 @@ func (s *Server) Router() http.Handler {
 		// File requests (public view, auth to create)
 		r.Get("/r/{id}", s.handleGetFileRequest)
 		r.Post("/r/{id}/submit", s.handleSubmitToFileRequest)
+		r.Post("/r/{id}/uploads/init", s.handleInitFileRequestUpload)
+		r.Post("/r/{id}/uploads/chunk", s.handleFileRequestUploadChunk)
+		r.Post("/r/{id}/uploads/{transferID}/complete", s.handleCompleteFileRequestUpload)
 
 		// Web folders (public access via token)
 		r.Get("/f/{token}", s.handleGetWebFolder)
 		r.Get("/f/{token}/files", s.handleGetWebFolderFiles)
 		r.Post("/f/{token}/upload", s.handleUploadToWebFolder)
+		r.Post("/f/{token}/uploads/init", s.handleInitWebFolderUpload)
+		r.Post("/f/{token}/uploads/chunk", s.handleWebFolderUploadChunk)
+		r.Post("/f/{token}/uploads/{transferID}/complete", s.handleCompleteWebFolderUpload)
 		r.Get("/f/{token}/download/{fileID}", s.handleDownloadFromWebFolder)
 		r.Post("/f/{token}/download/{fileID}", s.handleDownloadFromWebFolder)
 

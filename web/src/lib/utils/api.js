@@ -1,4 +1,5 @@
 const API_BASE = '/api';
+const CHUNK_SIZE = 5 * 1024 * 1024;
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('access_token');
@@ -26,6 +27,75 @@ async function request(path, options = {}) {
   }
 
   return res.json();
+}
+
+async function sha256Hex(buffer) {
+  if (!globalThis.crypto?.subtle) {
+    return '';
+  }
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function uploadRawChunk(path, upload, file, chunkIndex, chunkData, chunkHash) {
+  const token = localStorage.getItem('access_token');
+  const headers = {
+    'X-Transfer-ID': upload.transfer_id,
+    'X-File-ID': upload.file_id,
+    'X-Chunk-Index': String(chunkIndex),
+    'X-File-Name': file.name,
+    'X-File-Size': String(file.size),
+    'X-Mime-Type': file.type || 'application/octet-stream',
+    'X-Chunk-Hash': chunkHash || '',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers,
+    body: chunkData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Chunk upload failed' }));
+    throw new Error(err.error || 'Chunk upload failed');
+  }
+  return res.json();
+}
+
+async function uploadChunkedFile(file, paths, meta = {}, onProgress) {
+  const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+  const upload = await request(paths.init, {
+    method: 'POST',
+    body: {
+      name: file.name,
+      size: file.size,
+      mime_type: file.type || 'application/octet-stream',
+      total_chunks: totalChunks,
+      chunk_size: CHUNK_SIZE,
+      ...meta,
+    },
+  });
+
+  let uploadedBytes = 0;
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    const chunk = file.slice(start, end);
+    const buffer = await chunk.arrayBuffer();
+    const hash = await sha256Hex(buffer);
+
+    await uploadRawChunk(paths.chunk, upload, file, i, buffer, hash);
+    uploadedBytes += chunk.size;
+    if (onProgress) {
+      onProgress(file.size === 0 ? 1 : uploadedBytes / file.size);
+    }
+  }
+
+  const completePath = paths.complete(upload.transfer_id);
+  return request(completePath, { method: 'POST' });
 }
 
 export const api = {
@@ -87,31 +157,12 @@ export const api = {
   listWebFolders: () => request('/folders'),
   getWebFolder: (token) => request(`/f/${token}`),
   getWebFolderFiles: (token) => request(`/f/${token}/files`),
-  uploadToWebFolder: (token, file, onProgress) => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_BASE}/f/${token}/upload`);
-      const token_auth = localStorage.getItem('access_token');
-      if (token_auth) xhr.setRequestHeader('Authorization', `Bearer ${token_auth}`);
-      xhr.setRequestHeader('X-File-Name', file.name);
-      xhr.setRequestHeader('X-File-Size', String(file.size));
-      xhr.setRequestHeader('X-Mime-Type', file.type || 'application/octet-stream');
-      if (onProgress) {
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) onProgress(e.loaded / e.total);
-        };
-      }
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText));
-        } else {
-          reject(new Error('Upload failed'));
-        }
-      };
-      xhr.onerror = () => reject(new Error('Upload failed'));
-      xhr.send(file);
-    });
-  },
+  uploadToWebFolder: (token, file, onProgress, meta = {}) =>
+    uploadChunkedFile(file, {
+      init: `/f/${token}/uploads/init`,
+      chunk: `/f/${token}/uploads/chunk`,
+      complete: (transferId) => `/f/${token}/uploads/${transferId}/complete`,
+    }, meta, onProgress),
   getWebFolderDownloadUrl: (token, fileID) => `${API_BASE}/f/${token}/download/${fileID}`,
 
   // File Requests
@@ -119,34 +170,16 @@ export const api = {
     request('/file-requests', { method: 'POST', body: data }),
   listFileRequests: () => request('/file-requests'),
   getFileRequest: (id) => request(`/r/${id}`),
-  uploadToFileRequest: (id, file, onProgress, meta) => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_BASE}/r/${id}/submit`);
-      const token_auth = localStorage.getItem('access_token');
-      if (token_auth) xhr.setRequestHeader('Authorization', `Bearer ${token_auth}`);
-      xhr.setRequestHeader('X-File-Name', file.name);
-      xhr.setRequestHeader('X-File-Size', String(file.size));
-      xhr.setRequestHeader('X-Mime-Type', file.type || 'application/octet-stream');
-      if (meta?.name) xhr.setRequestHeader('X-Uploader-Name', meta.name);
-      if (meta?.email) xhr.setRequestHeader('X-Uploader-Email', meta.email);
-      if (meta?.message) xhr.setRequestHeader('X-Uploader-Message', meta.message);
-      if (onProgress) {
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) onProgress(e.loaded / e.total);
-        };
-      }
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText));
-        } else {
-          reject(new Error('Upload failed'));
-        }
-      };
-      xhr.onerror = () => reject(new Error('Upload failed'));
-      xhr.send(file);
-    });
-  },
+  uploadToFileRequest: (id, file, onProgress, meta = {}) =>
+    uploadChunkedFile(file, {
+      init: `/r/${id}/uploads/init`,
+      chunk: `/r/${id}/uploads/chunk`,
+      complete: (transferId) => `/r/${id}/uploads/${transferId}/complete`,
+    }, {
+      uploader_name: meta.name || '',
+      uploader_email: meta.email || '',
+      message: meta.message || '',
+    }, onProgress),
 
   // Brand
   getBrand: () => request('/brand'),
