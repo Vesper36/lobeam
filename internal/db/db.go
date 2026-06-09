@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -330,6 +331,34 @@ func (db *DB) DeleteExpiredTransfers() (int64, error) {
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// GetTransfersExpiringSoon returns ready transfers expiring within the given duration
+func (db *DB) GetTransfersExpiringSoon(within time.Duration) ([]*model.Transfer, error) {
+	cutoff := time.Now().Add(within).Format("2006-01-02 15:04:05")
+	rows, err := db.conn.Query(
+		`SELECT id, user_id, name, status, file_count, total_size, encrypted,
+		 max_downloads, download_count, expires_at, created_at, note, sender_email
+		 FROM transfers WHERE status = 'ready' AND expires_at > CURRENT_TIMESTAMP
+		 AND expires_at < ? AND sender_email != '' ORDER BY expires_at`, cutoff,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transfers []*model.Transfer
+	for rows.Next() {
+		t := &model.Transfer{}
+		var enc int
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Status, &t.FileCount, &t.TotalSize,
+			&enc, &t.MaxDownloads, &t.DownloadCount, &t.ExpiresAt, &t.CreatedAt, &t.Note, &t.SenderEmail); err != nil {
+			return nil, err
+		}
+		t.Encrypted = enc != 0
+		transfers = append(transfers, t)
+	}
+	return transfers, nil
 }
 
 // ---- File ----

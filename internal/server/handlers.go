@@ -242,6 +242,11 @@ func (s *Server) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
 		s.db.UpdateUserStorageUsed(*t.UserID, t.TotalSize)
 	}
 
+	// Auto-notify receiver if email was provided
+	if t != nil && t.ReceiverEmail != "" && s.notify != nil {
+		go s.notify.SendTransferReady(t.ReceiverEmail, transferID, t.Name)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":       "ready",
 		"transfer":     t,

@@ -319,6 +319,15 @@ func (s *Server) Start() error {
 			if n > 0 {
 				slog.Info("cleanup: expired transfers removed", "count", n)
 			}
+			// Notify about transfers expiring within the next 1 hour
+			if s.notify != nil {
+				expiring, _ := s.db.GetTransfersExpiringSoon(time.Hour)
+				for _, t := range expiring {
+					if t.SenderEmail != "" {
+						s.notify.SendTransferExpiring(t.SenderEmail, t.ID, t.Name, t.ExpiresAt)
+					}
+				}
+			}
 		}
 	}()
 
