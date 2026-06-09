@@ -31,5 +31,8 @@ ENV LOBEAM_PORT=50030
 
 EXPOSE 50030
 
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -qO- http://localhost:50030/health || exit 1
+
 USER lobeam
 ENTRYPOINT ["lobeam"]

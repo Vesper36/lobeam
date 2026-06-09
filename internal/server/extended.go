@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -24,6 +25,15 @@ import (
 // ---- Brand (public) ----
 
 func (s *Server) handleGetBrand(w http.ResponseWriter, r *http.Request) {
+	// Check cache first (brand rarely changes, cache for 5 minutes)
+	s.brandCacheMu.RLock()
+	cached := s.brandCache
+	s.brandCacheMu.RUnlock()
+	if cached != nil && time.Now().Before(cached.expiresAt) {
+		writeJSON(w, http.StatusOK, cached.brand)
+		return
+	}
+
 	host := r.Host
 	brand, err := s.db.GetBrandByDomain(host)
 	if err != nil {
@@ -39,6 +49,12 @@ func (s *Server) handleGetBrand(w http.ResponseWriter, r *http.Request) {
 			DefaultExpiryHours: 24,
 		}
 	}
+
+	// Update cache
+	s.brandCacheMu.Lock()
+	s.brandCache = &cachedBrand{brand: brand, expiresAt: time.Now().Add(5 * time.Minute)}
+	s.brandCacheMu.Unlock()
+
 	writeJSON(w, http.StatusOK, brand)
 }
 
@@ -52,6 +68,10 @@ func (s *Server) handleUpdateBrand(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update brand: "+err.Error())
 		return
 	}
+	// Invalidate cached brand after update
+	s.brandCacheMu.Lock()
+	s.brandCache = nil
+	s.brandCacheMu.Unlock()
 	writeJSON(w, http.StatusOK, b)
 }
 
@@ -229,6 +249,7 @@ func (s *Server) handleSubmitToFileRequest(w http.ResponseWriter, r *http.Reques
 	}
 	_ = s.db.UpdateTransferCounts(transferID)
 	_ = s.db.AddFileRequestUpload(id, actualSize)
+	slog.Debug("file uploaded to request", "file", fileName, "request", id, "size", actualSize)
 
 	// Audit log
 	if fr.UserID != nil {
@@ -851,11 +872,24 @@ func (s *Server) handleListWebFolders(w http.ResponseWriter, r *http.Request) {
 // ---- Settings ----
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	s.settingsCacheMu.RLock()
+	cached := s.settingsCache
+	s.settingsCacheMu.RUnlock()
+	if cached != nil && time.Now().Before(cached.expiresAt) {
+		writeJSON(w, http.StatusOK, cached.settings)
+		return
+	}
+
 	settings, err := s.db.GetSettings()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get settings")
 		return
 	}
+
+	s.settingsCacheMu.Lock()
+	s.settingsCache = &cachedSettings{settings: settings, expiresAt: time.Now().Add(5 * time.Minute)}
+	s.settingsCacheMu.Unlock()
+
 	writeJSON(w, http.StatusOK, settings)
 }
 
@@ -869,6 +903,9 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update settings")
 		return
 	}
+	s.settingsCacheMu.Lock()
+	s.settingsCache = nil
+	s.settingsCacheMu.Unlock()
 	writeJSON(w, http.StatusOK, s2)
 }
 

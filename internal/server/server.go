@@ -21,6 +21,7 @@ import (
 	"github.com/vesper/lobeam/internal/config"
 	"github.com/vesper/lobeam/internal/db"
 	"github.com/vesper/lobeam/internal/integrations"
+	"github.com/vesper/lobeam/internal/model"
 	"github.com/vesper/lobeam/internal/notify"
 	"github.com/vesper/lobeam/internal/oidc"
 	"github.com/vesper/lobeam/internal/storage"
@@ -38,6 +39,22 @@ type Server struct {
 	staticFS   fs.FS
 	oidcMgr    *oidc.Manager
 	oidcStates sync.Map // state -> oidcStateEntry
+
+	// Cached values for high-traffic read endpoints
+	brandCache     *cachedBrand
+	brandCacheMu   sync.RWMutex
+	settingsCache  *cachedSettings
+	settingsCacheMu sync.RWMutex
+}
+
+type cachedBrand struct {
+	brand    *model.Brand
+	expiresAt time.Time
+}
+
+type cachedSettings struct {
+	settings  *model.Settings
+	expiresAt time.Time
 }
 
 func New(cfg *config.Config, database *db.DB, store storage.Store, userSvc *user.Service, notif *notify.Service, staticFS fs.FS) *Server {
